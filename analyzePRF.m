@@ -1,8 +1,6 @@
-function [results,supergridseeds] = ...
-  analyzePRF(stimulus,data,tr,vxs,wantglmdenoise,seedmode,wantfithrf,xvalmode,numperjob,maxiter,display,typicalgain)
+function results = analyzePRF(stimulus,data,tr,options)
 
-% function [results,supergridseeds] = ...
-%   analyzePRF(stimulus,data,tr,vxs,wantglmdenoise,seedmode,wantfithrf,xvalmode,numperjob,maxiter,display,typicalgain)
+% function results = analyzePRF(stimulus,data,tr,options)
 %
 % <stimulus> provides the apertures as a cell vector of R x C x time.
 %   values should be in [0,1].  the number of time points can differ across runs.
@@ -10,58 +8,53 @@ function [results,supergridseeds] = ...
 %   X x Y x Z x time.  the number of time points should match the number of 
 %   time points in <stimulus>.
 % <tr> is the TR in seconds (e.g. 1.5)
-% <vxs> (optional) is a vector of voxel indices to analyze.  (we automatically
-%   sort the voxel indices and ensure uniqueness.)  default to 1:V where 
-%   V is total number of voxels.  to reduce computational time, you may want 
-%   to create a binary brain mask and perform find() on it.
-% <wantglmdenoise> (optional) is whether to use GLMdenoise to determine
-%   nuisance regressors to add into the PRF model.  note that in order to use
-%   this feature, there must be at least two runs (and conditions must repeat
-%   across runs).  we automatically determine the GLM design matrix based on
-%   the contents of <stimulus>.  special case is to pass in the noise regressors 
-%   directly (e.g. from a previous call).  default: 0.
-% <seedmode> (optional) is
-%   0 means use default initial seeds
-%   1 means use best seed based on super-grid
-%   2 means use random seed
-%   3 means 0 and 1
-%   M where M is X x Y x Z x parameters with the seed to use for each voxel.
-%   default: 0.  sketch out this strategy. maybe make a figure.  helps you think about bias.
-% <wantfithrf> (optional) is whether to fit the HRF on a voxel-by-voxel basis.
-%   (INTERACTION WITH GLMDENOISE>..??.)
-%   default: 0.
-% <xvalmode> (optional) is
-%   0 means just fit all the data
-%   1 means two-fold cross-validation (first half of runs; second half of runs)
-%   2 means two-fold cross-validation (first half of each run; second half of each run)
-%   default: 0.  (note that we round when halving.)
-% <numperjob> (optional) is
-%   [] means to run locally (not on the cluster)
-%   N where N is a positive integer indicating the number of voxels to
-%     analyze in each cluster job.
-%   default: [].
-% <maxiter> (optional) is maximum number of iterations.
-%   default: 500.
-% <display> (optional)
-% <typicalgain> (optional)
+% <options> (optional) is a struct with the following fields:
+%   <vxs> (optional) is a vector of voxel indices to analyze.  (we automatically
+%     sort the voxel indices and ensure uniqueness.)  default is 1:V where 
+%     V is total number of voxels.  to reduce computational time, you may want 
+%     to create a binary brain mask, perform find() on it, and use the result as <vxs>.
+%   <wantglmdenoise> (optional) is whether to use GLMdenoise to determine
+%     nuisance regressors to add into the PRF model.  note that in order to use
+%     this feature, there must be at least two runs (and conditions must repeat
+%     across runs).  we automatically determine the GLM design matrix based on
+%     the contents of <stimulus>.  special case is to pass in the noise regressors 
+%     directly (e.g. from a previous call).  default: 0.
+%   <seedmode> (optional) is a vector consisting of one or more of the
+%     following values (we automatically sort and ensure uniqueness):
+%       0 means use generic large PRF seed
+%       1 means use generic small PRF seed
+%       2 means use best seed based on super-grid
+%     default: [0 1 2].
+%   <xvalmode> (optional) is
+%     0 means just fit all the data
+%     1 means two-fold cross-validation (first half of runs; second half of runs)
+%     2 means two-fold cross-validation (first half of each run; second half of each run)
+%     default: 0.  (note that we round when halving.)
+%   <numperjob> (optional) is
+%     [] means to run locally (not on the cluster)
+%     N where N is a positive integer indicating the number of voxels to analyze in each 
+%       cluster job.  this option requires a customized computational setup!
+%     default: [].
+%   <maxiter> (optional) is the maximum number of iterations.  default: 500.
+%   <display> (optional) is 'iter' | 'final' | 'off'.  default: 'iter'.
+%   <typicalgain> (optional) is a typical value for the gain in each time-series.
+%     default: 10.
 %
 % analyze PRF data and return the results.
-% <supergridseeds> is X x Y x Z x parameters with the super-grid seed selected.
 %
 % notes:
 % - pRF gain is restricted to be positive
 %
 % history:
+% 2014/06/10 - version 1.0
 % 2014/04/27 - gain seed is now set to 0; add gain to the output
 % 2014/04/29 - use typicalgain now (default 10). allow display input.
 %
 % example:
 
 % internal notes:
-% - convert inputs to options struct!
 % - for cluster mode, need to make sure fitnonlinearmodel is compiled (compilemcc.m)
 % - to check whether local minima are a problem, can look at results.resnorms
-% - having clear input and clear output will be good for integration
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% REPORT
 
@@ -73,13 +66,12 @@ stime = clock;  % start time
 % define
 remotedir = '/scratch/knk/input/';
 remotedir2 = '/scratch/knk/output/';
-remotelogin = 'knk@login1.chpc.wustl.edu';
+remotelogin = 'knk@login2.chpc.wustl.edu';
 remoteuser = 'knk';
-corrthresh = .99;  % used in determining which apertures are the same
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SETUP AND PREPARATION
 
-% massage
+% massage cell inputs
 if ~iscell(stimulus)
   stimulus = {stimulus};
 end
@@ -105,37 +97,40 @@ res = sizefull(stimulus{1},2);
 resmx = max(res);
 numruns = length(data);
 
-% input
-if ~exist('vxs','var') || isempty(vxs)
-  vxs = 1:numvxs;
+% deal with inputs
+if ~exist('options','var') || isempty(options)
+  options = struct();
 end
-if ~exist('wantglmdenoise','var') || isempty(wantglmdenoise)
-  wantglmdenoise = 0;
+if ~isfield(options,'vxs') || isempty(options.vxs)
+  options.vxs = 1:numvxs;
 end
-if ~exist('seedmode','var') || isempty(seedmode)
-  seedmode = 0;
+if ~isfield(options,'wantglmdenoise') || isempty(options.wantglmdenoise)
+  options.wantglmdenoise = 0;
 end
-if ~exist('wantfithrf','var') || isempty(wantfithrf)
-  wantfithrf = 0;
+if ~isfield(options,'seedmode') || isempty(options.seedmode)
+  options.seedmode = [0 1 2];
 end
-if ~exist('xvalmode','var') || isempty(xvalmode)
-  xvalmode = 0;
+if ~isfield(options,'xvalmode') || isempty(options.xvalmode)
+  options.xvalmode = 0;
 end
-if ~exist('numperjob','var') || isempty(numperjob)
-  numperjob = [];
+if ~isfield(options,'numperjob') || isempty(options.numperjob)
+  options.numperjob = [];
 end
-if ~exist('maxiter','var') || isempty(maxiter)
-  maxiter = 500;
+if ~isfield(options,'maxiter') || isempty(options.maxiter)
+  options.maxiter = 500;
 end
-if ~exist('display','var') || isempty(display)
-  display = 'final';
+if ~isfield(options,'display') || isempty(options.display)
+  options.display = 'iter';
 end
-if ~exist('typicalgain','var') || isempty(typicalgain)
-  typicalgain = 10;
+if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
+  options.typicalgain = 10;
 end
 
+% massage
+options.seedmode = union(options.seedmode(:),[]);
+
 % calc
-usecluster = ~isempty(numperjob);
+usecluster = ~isempty(options.numperjob);
 
 % prepare stimuli
 for p=1:length(stimulus)
@@ -144,17 +139,17 @@ for p=1:length(stimulus)
   stimulus{p} = single(stimulus{p});  % make single to save memory
 end
 
-% deal with data badness (set bad voxels to always all 0)
+% deal with data badness (set bad voxels to be always all 0)
 bad = cellfun(@(x) any(~isfinite(x),dimtime) | all(x==0,dimtime),data,'UniformOutput',0);  % if non-finite or all 0
 bad = any(cat(dimtime,bad{:}),dimtime);  % badness in ANY run
-for q=1:numruns
-  data{q}(repmat(bad,[ones(1,dimdata) size(data{q},dimtime)])) = 0;
+for p=1:numruns
+  data{p}(repmat(bad,[ones(1,dimdata) size(data{p},dimtime)])) = 0;
 end
 
 % calc mean volume
 meanvol = mean(catcell(dimtime,data),dimtime);
 
-% what HRF should we start from?
+% what HRF should we use?
 hrf = getcanonicalhrf(tr,tr)';
 numinhrf = length(hrf);
 
@@ -167,91 +162,14 @@ if usecluster
   remotefilestodelete = {};
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% APPLY GLMDENOISE [perhaps make this a subfunction?]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIGURE OUT NOISE REGRESSORS
 
-if isequal(wantglmdenoise,1)
-
-  %%%%% figure out GLM design matrix
-  
-  % concatenate everything and drop the dummy column (X is pixels x frames)
-  X = catcell(1,stimulus)';
-  X(end,:) = [];
-  
-  % figure out where blanks are (logical vector, 1 x frames)
-  blanks = all(X==0,1);
-
-  % normalize each frame (in preparation for computing correlations)
-  X = unitlength(X,1,[],0);
-  X(:,blanks) = 0;
-
-  % initialize the result (this will grow in size on-the-fly)
-  glmdesign = zeros(size(X,2),0);
-
-  % do the loop
-  wh = find(~blanks);
-  cnt = 1;
-  while ~isempty(wh)
-    ix = wh(1);                        % pick the first one to process
-    corrs = X(:,ix)' * X;              % compute correlation with all frames
-    spots = find(corrs > corrthresh);  % any frame with r > .99 counts as the same
-    glmdesign(spots,cnt) = 1;          % add to design matrix
-    X(:,spots) = 0;                    % blank out (since we're done with those columns)
-    blanks(spots) = 1;                 % update the list of blanks
-    wh = find(~blanks);
-    cnt = cnt + 1;
-  end
-
-  % finally, un-concatenate the results
-  glmdesign = splitmatrix(glmdesign,1,cellfun(@(x) size(x,1),stimulus));
-  
-  % clean up
-  clear X;
-  
-  %%%%% run GLMdenoise to get the noise regressors
-
-  % what directory to save results to?
-  glmdenoisedir = [tempname];
-  assert(mkdir(glmdenoisedir));
-
-  % call GLMdenoise
-  fprintf('using GLMdenoise figure directory %s\n',[glmdenoisedir '/GLMdenoisefigures']);
-  if wantfithrf
-    hrfmodel = [];
-    hrfknobs = [];
-  else
-    hrfmodel = 'assume';
-    hrfknobs = hrf;
-  end
-  results = GLMdenoisedata(glmdesign,data,tr,tr,hrfmodel,hrfknobs, ...
-                           struct('numboots',0), ...
-                           [glmdenoisedir '/GLMdenoisefigures']);
-
-  % get the noise regressors
-  noisereg = cellfun(@(x) x(:,1:results.pcnum),results.pcregressors,'UniformOutput',0);
-  
-  % get new HRF
-  if wantfithrf
-    hrf = results.modelmd{1};
-    numinhrf = length(hrf);
-  end
-
-  % save 'results' to a file
-  file0 = [glmdenoisedir '/GLMdenoise.mat'];
-  fprintf('saving GLMdenoise results to %s (in case you want them).\n',file0);
-  results = rmfield(results,{'pcweights' 'models' 'modelse'});  % remove some boring fields
-  save(file0,'results','noisereg');
-  
-  % clean up
-  clear results;
-
-elseif isequal(wantglmdenoise,0)
-
+if isequal(options.wantglmdenoise,1)
+  noisereg = analyzePRFcomputeGLMdenoiseregressors(stimulus,data,tr);
+elseif isequal(options.wantglmdenoise,0)
   noisereg = [];
-
 else
-
-  noisereg = wantglmdenoise;
-
+  noisereg = options.wantglmdenoise;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE MODEL
@@ -259,72 +177,49 @@ end
 % pre-compute some cache
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
-% define the model (parameters are R C S G N [HRF])
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),pp(5+(1:numinhrf))',dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN repmat(NaN,[1 numinhrf]);
-              2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0   repmat(NaN,[1 numinhrf]);
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] @(ss)modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0   repmat(-Inf,[1 numinhrf]);
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] @(ss)modelfun}};
-
-% if don't want to fit the HRF, exclude the last model step
-if ~wantfithrf
-  model = model(1:2);
-end
+% define the model (parameters are R C S G N)
+modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),hrf,dd(:,prod(res)+1));
+model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+              2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
+         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
+                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
 
-% default output for supergridseeds is []
-supergridseeds = [];
+% init
+seeds = [];
 
-% now define the seeds
-if isequal(seedmode,0)
+% generic large seed
+if ismember(0,options.seedmode)
+  seeds = [seeds;
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+end
 
-  % compute typical seeds (one large and one small at center)
-  seeds = [(1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)  typicalgain 0.5;
-           (1+res(1))/2 (1+res(2))/2 resmx/16*sqrt(0.5) typicalgain 0.5;
-           (1+res(1))/2 (1+res(2))/2 resmx/64*sqrt(0.5) typicalgain 0.5];
-           
-  % tack on HRF
-  seeds(:,end+(1:numinhrf)) = repmat(flatten(hrf),[size(seeds,1) 1]);
+% generic small seed
+if ismember(1,options.seedmode)
+  seeds = [seeds;
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+end
 
-elseif isequal(seedmode,1)
+% super-grid seed
+if ismember(2,options.seedmode)
+  supergridseeds = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
+                                                   maxpolydeg,dimdata,dimtime, ...
+                                                   options.typicalgain);
+end
 
-  % compute super-grid seeds
-  supergridseeds = computesupergridseeds(res,stimulus,data,modelfun,hrf,maxpolydeg,dimdata,dimtime);
-
-  % make a function that individualizes the seeds and tacks on HRF
-  seeds = @(vx) [subscript(squish(supergridseeds,dimdata),{vx ':'}) flatten(hrf)];
-
-elseif isequal(seedmode,2)
-
-  % compute random seed (angle is random between 0 and 2*pi; ecc is random between 0 and resmx/2)
-  tempfun = @(ang0) [-sin(ang0) cos(ang0)];
-  seeds = @(vx) [[(1+res(1))/2 (1+res(2))/2] + (rand*resmx/2)*tempfun(rand*2*pi) resmx/4*sqrt(0.5) 10 0.5 flatten(hrf)];
-
-elseif isequal(seedmode,3)
-
-  % compute super-grid seeds
-  supergridseeds = computesupergridseeds(res,stimulus,data,modelfun,hrf,maxpolydeg,dimdata,dimtime,typicalgain);
-
-  % make a function that individualizes the seeds and tacks on HRF
-  seeds = @(vx) cat(2,[subscript(squish(supergridseeds,dimdata),{vx ':'});
-                 (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)  typicalgain 0.5;
-                 (1+res(1))/2 (1+res(2))/2 resmx/16*sqrt(0.5) typicalgain 0.5;
-                 (1+res(1))/2 (1+res(2))/2 resmx/64*sqrt(0.5) typicalgain 0.5],repmat(flatten(hrf),[4 1]));
-
+% make a function that individualizes the seeds
+if exist('supergridseeds','var')
+  seedfun = @(vx) [[seeds];
+                   [subscript(squish(supergridseeds,dimdata),{vx ':'})]];
 else
-
-  % make a function that individualizes the seeds and tacks on HRF
-  seeds = @(vx) [subscript(squish(seedmode,      dimdata),{vx ':'}) flatten(hrf)];
-
+  seedfun = @(vx) [seeds];
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE RESAMPLING STUFF
 
 % define wantresampleruns and resampling
-switch xvalmode
+switch options.xvalmode
 case 0
   wantresampleruns = [];
   resampling = 0;
@@ -375,8 +270,8 @@ if usecluster
   end
   clear stimulus;  % don't let it bleed through anywhere!
 
-  % define stimulusINPUT
-  stimulusINPUT = @() loadmulti(remotefile0,'stimulus');
+  % define stimulus
+  stimulus = @() loadmulti(remotefile0,'stimulus');
 
   % save data and transport to the remote server
   while 1
@@ -405,9 +300,9 @@ if usecluster
   end
   clear data;
 
-  % define dataINPUT
+  % define data
   binfiles = cellfun(@(x) [remotefile0 sprintf('/%03d.bin',x)],num2cell(1:numruns),'UniformOutput',0);
-  dataINPUT = @(vxs) cellfun(@(x) double(loadbinary(x,'single',[0 numvxs],-vxs)),binfiles,'UniformOutput',0);
+  data = @(vxs) cellfun(@(x) double(loadbinary(x,'single',[0 numvxs],-vxs)),binfiles,'UniformOutput',0);
 
   % prepare the output directory name
   while 1
@@ -424,44 +319,46 @@ if usecluster
   end
   outputdirlocal = localfile0;
   outputdirremote = remotefile0;
-  outputdirINPUT = outputdirremote;
+  outputdir = outputdirremote;
 
 %%%%% NON-CLUSTER CASE
 
 else
 
-  stimulusINPUT = {stimulus};
-  dataINPUT = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data,'UniformOutput',0);
-  outputdirINPUT = [];
+  stimulus = {stimulus};
+  data = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data,'UniformOutput',0);
+  outputdir = [];
 
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE OPTIONS
 
-% construct the options struct
+% last-minute prep
 if iscell(noisereg)
-  noisereg0 = {noisereg};
+  noiseregINPUT = {noisereg};
 else
-  noisereg0 = noisereg;
+  noiseregINPUT = noisereg;
 end
+
+% construct the options struct
 opt = struct( ...
-  'outputdir',outputdirINPUT, ...
-  'stimulus',stimulusINPUT, ...
-  'data',dataINPUT, ...
-  'vxs',vxs, ...
+  'outputdir',outputdir, ...
+  'stimulus',stimulus, ...
+  'data',data, ...
+  'vxs',options.vxs, ...
   'model',{model}, ...
-  'seed',seeds, ...
-  'optimoptions',{{'Display' display 'Algorithm' 'levenberg-marquardt' 'MaxIter' maxiter}}, ...  % 'iter'
+  'seed',seedfun, ...
+  'optimoptions',{{'Display' options.display 'Algorithm' 'levenberg-marquardt' 'MaxIter' options.maxiter}}, ...
   'wantresampleruns',wantresampleruns, ...
   'resampling',resampling, ...
   'metric',@calccod, ...
   'maxpolydeg',maxpolydeg, ...
   'wantremovepoly',1, ...
-  'extraregressors',noisereg0, ...
+  'extraregressors',noiseregINPUT, ...
   'wantremoveextra',0, ...
   'dontsave',{{'modelfit' 'opt' 'vxsfull' 'modelpred' 'testdata'}});  % 'resnorms' 'numiters' 
 
-%  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
+        %  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
         %'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d));
         %   % debugging:
         %   chpcstimfile = '/stone/ext1/knk/HCPretinotopy/conimagesB.mat';
@@ -488,7 +385,9 @@ if usecluster
   jobnames = {};
   jobnames = [jobnames {makedirid(opt.outputdir,1)}];
   jobids = [];
-  jobids = [jobids chpcrun(jobnames{end},'fitnonlinearmodel',numperjob,1,ceil(length(vxs)/numperjob),[],{'data' 'stimulus' 'bad' 'd' 'xx' 'yy' 'modelfun' 'model' 'stimulusINPUT' 'dataINPUT'})];
+  jobids = [jobids chpcrun(jobnames{end},'fitnonlinearmodel',options.numperjob, ...
+                           1,ceil(length(options.vxs)/options.numperjob),[], ...
+                           {'data' 'stimulus' 'bad' 'd' 'xx' 'yy' 'modelfun' 'model'})];
 
   % record additional files to delete
   for p=1:length(jobnames)
@@ -532,35 +431,33 @@ results.R2 =       NaN*zeros(numvxs,numfits);
 results.gain =     NaN*zeros(numvxs,numfits);
 results.resnorms = cell(numvxs,1);
 results.numiters = cell(numvxs,1);
-results.hrf =      NaN*zeros(numvxs,numinhrf,numfits);
 
 % massage model parameters for output and put in 'results' struct
-results.ang(vxs,:) =    permute(mod(atan2((1+res(1))/2 - a1.params(:,1,:), ...
-                                          a1.params(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
-results.ecc(vxs,:) =    permute(sqrt(((1+res(1))/2 - a1.params(:,1,:)).^2 + (a1.params(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
-results.expt(vxs,:) =   permute(posrect(a1.params(:,5,:)),[3 1 2]);
-results.rfsize(vxs,:) = permute(abs(a1.params(:,3,:)) ./ sqrt(posrect(a1.params(:,5,:))),[3 1 2]);
-results.R2(vxs,:) =     permute(a1.trainperformance,[2 1]);
-results.gain(vxs,:) =   permute(posrect(a1.params(:,4,:)),[3 1 2]);
-results.resnorms(vxs) = a1.resnorms;
-results.numiters(vxs) = a1.numiters;
-results.hrf(vxs,:,:) =  permute(a1.params(:,5+(1:numinhrf),:),[3 2 1]);
+results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - a1.params(:,1,:), ...
+                                                  a1.params(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
+results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - a1.params(:,1,:)).^2 + ...
+                                             (a1.params(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
+results.expt(options.vxs,:) =   permute(posrect(a1.params(:,5,:)),[3 1 2]);
+results.rfsize(options.vxs,:) = permute(abs(a1.params(:,3,:)) ./ sqrt(posrect(a1.params(:,5,:))),[3 1 2]);
+results.R2(options.vxs,:) =     permute(a1.trainperformance,[2 1]);
+results.gain(options.vxs,:) =   permute(posrect(a1.params(:,4,:)),[3 1 2]);
+results.resnorms(options.vxs) = a1.resnorms;
+results.numiters(options.vxs) = a1.numiters;
 
 % reshape
-results.ang = reshape(results.ang,[xyzsize numfits]);
-results.ecc = reshape(results.ecc,[xyzsize numfits]);
-results.expt = reshape(results.expt,[xyzsize numfits]);
-results.rfsize = reshape(results.rfsize,[xyzsize numfits]);
-results.R2 = reshape(results.R2,[xyzsize numfits]);
-results.gain = reshape(results.gain,[xyzsize numfits]);
-results.resnorms = reshape(results.resnorms,[xyzsize 1]);
-results.numiters = reshape(results.numiters,[xyzsize 1]);
-results.hrf = reshape(results.hrf,[xyzsize numinhrf numfits]);
+results.ang =      reshape(results.ang,      [xyzsize numfits]);
+results.ecc =      reshape(results.ecc,      [xyzsize numfits]);
+results.expt =     reshape(results.expt,     [xyzsize numfits]);
+results.rfsize =   reshape(results.rfsize,   [xyzsize numfits]);
+results.R2 =       reshape(results.R2,       [xyzsize numfits]);
+results.gain =     reshape(results.gain,     [xyzsize numfits]);
+results.resnorms = reshape(results.resnorms, [xyzsize 1]);
+results.numiters = reshape(results.numiters, [xyzsize 1]);
 
 % add some more stuff
-results.meanvol = meanvol;
+results.meanvol =  meanvol;
 results.noisereg = noisereg;
-results.params = a1.params;
+results.params =   a1.params;
 
 % save 'results' to a temporary file so we don't lose these precious results!
 file0 = [tempname '.mat'];
@@ -598,115 +495,23 @@ end
 fprintf('*** analyzePRF: ended at %s (%.1f minutes). ***\n', ...
         datestr(now),etime(clock,stime)/60);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% JUNK
 
-function seeds = computesupergridseeds(res,stimulus,data,modelfun,hrf,maxpolydeg,dimdata,dimtime,typicalgain)
-
-% function seeds = computesupergridseeds(res,stimulus,data,modelfun,hrf,maxpolydeg,dimdata,dimtime,typicalgain)
-%
-% <res> is [R C] with the resolution of the stimuli
-% <stimulus> is a cell vector of time x (pixels+1)
-% <data> is a cell vector of X x Y x Z x time
-% <modelfun> is a function that accepts parameters (pp) and stimuli (dd) and outputs predicted time-series (time x 1)
-% <hrf> is T x 1 with the HRF
-% <maxpolydeg> is a vector of degrees
-% <dimdata> is number of dimensions that pertain to voxels
-% <dimtime> is the dimension that is the time dimension
-% <typicalgain>
-%
-% return a matrix of dimensions X x Y x Z x parameters with the best seed from the super-grid.
-% the seed does NOT include the HRF parameters.
-%
-% internal notes:
-% - note that the gain seed is fake (it is not set correctly)
-
-% define
-eccs = [0 0.00551 0.014 0.0269 0.0459 0.0731 0.112 0.166 0.242 0.348 0.498 0.707 1];
-angs = linspacecircular(0,2*pi,16);
-expts = [0.5 0.25 0.125];
-
-% calc
-resmx = max(res);
-
-% calculate sigma gridding (pRF size is 1 px, 2 px, 4 px, ..., up to resmx)
-maxn = floor(log2(resmx));
-ssindices = 2.^(0:maxn);
-
-% construct full list of seeds (seeds x params)
-allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),5);
-cnt = 1;
-for p=1:length(eccs)
-  for q=1:length(angs)
-    if p==1 && q>1  % for the center-of-gaze, only do the first angle
-      continue;
-    end
-    for s=1:length(ssindices)
-      for r=1:length(expts)
-        allseeds(cnt,:) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
-                           (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
-                           ssindices(s)*sqrt(expts(r)) 1 expts(r)];
-        cnt = cnt + 1;
-      end
-    end
-  end
-end
-allseeds(cnt:end,:) = [];  % chop because of the omission above
-
-% generate predicted time-series [note that some time-series are all 0]
-predts = zeros(sum(cellfun(@(x) size(x,1),stimulus)),size(allseeds,1),'single');  % time x seeds
-temp = catcell(1,stimulus);
-fprintf('generating super-grid time-series...'); tic
-parfor p=1:size(allseeds,1)
-  predts(:,p) = modelfun([allseeds(p,:) flatten(hrf)],temp);
-end
-fprintf('done.'); toc
-clear temp;
-
-% % inspect for sanity on range and fineness [OBSOLETE]
-% figure;
-% for r=1:4:length(rrindices)
-%   for c=1:4:length(ccindices)
-%     for s=1:length(ssindices)
-%       cnt = (r-1)*(length(ccindices)*length(ssindices)) + (c-1)*length(ssindices) + s;
-%       clf;
-%       plot(predts(:,cnt)');
-%       title(sprintf('r=%d, c=%d, s=%d',r,c,s));
-%       pause;
-%     end
-%   end
+% % define the model (parameters are R C S G N [HRF])
+% modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),pp(5+(1:numinhrf))',dd(:,prod(res)+1));
+% model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN repmat(NaN,[1 numinhrf]);
+%               2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] modelfun} ...
+%          {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0   repmat(NaN,[1 numinhrf]);
+%                    2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] @(ss)modelfun} ...
+%          {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0   repmat(-Inf,[1 numinhrf]);
+%                    2*res(1)-1 2*res(2)-1 Inf  Inf Inf repmat(Inf,[1 numinhrf])] @(ss)modelfun}};
+% 
+% % if not fitting the HRF, exclude the last model step
+% if ~wantfithrf
+%   model = model(1:2);
 % end
+%wantfithrf = 0;    % for now, leave at 0
 
-% construct polynomials and projection matrix
-polyregressors = {};
-for p=1:length(maxpolydeg)
-  polyregressors{p} = constructpolynomialmatrix(size(data{p},dimtime),0:maxpolydeg(p));
-end
-pmatrix = projectionmatrix(blkdiag(polyregressors{:}));
-
-% project out polynomials and scale to unit length
-predts = unitlength(pmatrix*predts,                                1,[],0);  % time x seeds   [NOTE: some are all NaN]
-datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
-
-% compute correlation and find maximum for each voxel
-chunks = chunking(1:size(datats,2),100);
-bestseedix = {};
-parfor p=1:length(chunks)
-  % voxels x 1 with index of the best seed (max corr)
-  [mx,bestseedix{p}] = max(datats(:,chunks{p})' * predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
-end
-bestseedix = catcell(1,bestseedix);  % voxels x 1
-
-% massage output
-temp = allseeds(bestseedix,:);
-temp(:,4) = typicalgain;  % set gain to typical gain
-seeds = reshape(temp,[sizefull(data{1},dimdata) size(allseeds,2)]);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% JUNK
-
-    % OLD: before wantfithrf
-    % % define the model (parameters are R C S G N)
-    % modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),hrf,dd(:,prod(res)+1));
-    % model = {{[] [1-res(1)+1 1-res(2)+1 0   0   NaN;
-    %               2*res(1)-1 2*res(2)-1 Inf Inf Inf] modelfun} ...
-    %          {@(ss)ss [1-res(1)+1 1-res(2)+1 0   0   0;
-    %                    2*res(1)-1 2*res(2)-1 Inf Inf Inf] @(ss)modelfun}};
+% results.hrf =      NaN*zeros(numvxs,numinhrf,numfits);
+% results.hrf(options.vxs,:,:) =  permute(a1.params(:,5+(1:numinhrf),:),[3 2 1]);
+% results.hrf =      reshape(results.hrf,      [xyzsize numinhrf numfits]);
