@@ -19,6 +19,15 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     across runs).  we automatically determine the GLM design matrix based on
 %     the contents of <stimulus>.  special case is to pass in the noise regressors 
 %     directly (e.g. from a previous call).  default: 0.
+%   <hrf> (optional) is a column vector with the hemodynamic response function (HRF)
+%     to use in the model.  the first value of <hrf> should be coincident with the onset
+%     of the stimulus, and the HRF should indicate the timecourse of the response to
+%     a stimulus that lasts for one TR.  default is to use a canonical HRF (calculated
+%     using getcanonicalhrf(tr,tr)').
+%   <maxpolydeg> (optional) is a non-negative integer indicating the maximum polynomial
+%     degree to use for drift terms.  can be a vector whose length matches the number
+%     of runs in <data>.  default is to use round(L/2) where L is the number of minutes
+%     in the duration of a given run.
 %   <seedmode> (optional) is a vector consisting of one or more of the
 %     following values (we automatically sort and ensure uniqueness):
 %       0 means use generic large PRF seed
@@ -40,17 +49,90 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   <typicalgain> (optional) is a typical value for the gain in each time-series.
 %     default: 10.
 %
-% analyze PRF data and return the results.
+% Analyze pRF data and return the results.
 %
-% notes:
-% - pRF gain is restricted to be positive
+% The results structure contains the following fields:
+% <ang> contains pRF angle estimates.  Values range between 0 and 360 degrees.
+%   0 corresponds to the right horizontal meridian, 90 corresponds to the upper vertical
+%   meridian, and so on.
+% <ecc> contains pRF eccentricity estimates.  Values are in pixel units with a lower
+%   bound of 0 pixels.
+% <rfsize> contains pRF size estimates.  pRF size is defined as sigma/sqrt(n) where
+%   sigma is the standard of the 2D Gaussian and n is the exponent of the power-law
+%   function.  Values are in pixel units with a lower bound of 0 pixels.
+% <expt> contains pRF exponent estimates.
+% <gain> contains pRF gain estimates.  Values are in the same units of the data
+%   and are constrained to be non-negative.
+% <R2> contains R^2 values that indicate the goodness-of-fit of the model to the data.
+%   Values are in percentages and generally range between 0% and 100%.  The R^2 values
+%   are computed after projecting out polynomials from both the data and the model fit.
+%   (Because of this projection, R^2 values can sometimes drop below 0%.)  Note that
+%   if cross-validation is used (see <xvalmode>), the interpretation of <R2> changes
+%   accordingly.
+% <resnorms> and <numiters> contain optimization details (residual norms and 
+%   number of iterations, respectively).
+% <meanvol> contains the mean volume, that is, the mean of each voxel's time-series.
+% <noisereg> contains a record of the noise regressors used in the model.
+% <params> contains a record of the raw parameter estimates that are obtained internally
+%   in the code.  These raw parameters are transformed to a more palatable format for
+%   the user (as described above).
+% <options> contains a record of the options used in the call to analyzePRF.m.
+%
+% Details on the pRF model:
+% - Before analysis, we zero out any voxel that has a non-finite value or has all zeros
+%   in at least one of the runs.  This prevents weird issues due to missing or bad data.
+% - The pRF model that is fit is similar to that described in Dumoulin and Wandell (2008),
+%   except that a static power-law nonlinearity is added to the model.  This new model, 
+%   called the Compressive Spatial Summation (CSS) model, is described in Kay, Winawer, 
+%   Mezer, & Wandell (2013).
+% - The model involves computing the dot-product between the stimulus and a 2D isotropic
+%   Gaussian, raising the result to an exponent, scaling the result by a gain factor,
+%   and then convolving the result with a hemodynamic response function (HRF).  Polynomial
+%   terms are included (on a run-by-run basis) to model the baseline signal level.
+% - The 2D isotropic Gaussian is scaled such that the summation of the values in the
+%   Gaussian is equal to one.  This eases the interpretation of the gain of the model.
+% - The exponent parameter in the model is constrained to be non-negative.
+% - The gain factor in the model is constrained to be non-negative; this aids the 
+%   interpretation of the model (e.g. helps avoid voxels with negative BOLD responses
+%   to the stimuli).
+% - The workhorse of the analysis is fitnonlinearmodel.m, which is essentially a wrapper 
+%   around routines in the MATLAB Optimization Toolbox.  We use the Levenberg-Marquardt 
+%   algorithm for optimization, minimizing squared error between the model and the data.
+% - A two-stage optimization strategy is used whereby all parameters excluding the
+%   exponent parameter are first optimized (holding the exponent parameter fixed) and 
+%   then all parameters are optimized (including the exponent parameter).  This 
+%   strategy helps avoid local minima.
+%
+% Regarding GLMdenoise:
+% - If the <wantglmdenoise> option is specified, we derive noise regressors using
+%   GLMdenoise prior to model fitting.  This is done by creating a GLM design matrix
+%   based on the contents of <stimulus> and then using this design matrix in conjunction
+%   with GLMdenoise to analyze the data.  The noise regressors identified by GLMdenoise
+%   are then used in the fitting of the pRF models (the regressors enter the model
+%   additively, just like the polynomial regressors).
+%
+% Regarding seeding issues:
+% - To minimize the impact of local minima, the default strategy is to perform full 
+%   optimizations starting from three different initial seeds.
+% - The first seed is a generic large pRF that is centered with respect to the stimulus,
+%   has a pRF size equal to 1/4th of the stimulus extent (thus, +/- 2 pRF sizes matches
+%   the stimulus extent), and has an exponent of 0.5.
+% - The second seed is a generic small pRF that is just like the first seed except has
+%   a pRF size that is 10 times smaller.
+% - The third seed is a "supergrid" seed that is identified by performing a quick grid
+%   search prior to optimization (similar in spirit to methods described in Dumoulin and 
+%   Wandell, 2008).  In this procedure, a list of potential seeds is constructed by 
+%   exploring a range of eccentricities, angles, and exponents.  For each potential 
+%   seed, the model prediction is computed, and the seed that produces the closest 
+%   match to the data is identified.  Note that the supergrid seed may be different
+%   for different voxels.
 %
 % history:
+% 2014/06/17 - version 1.1
+% 2014/06/15 - add inputs <hrf> and <maxpolydeg>.
 % 2014/06/10 - version 1.0
 % 2014/04/27 - gain seed is now set to 0; add gain to the output
 % 2014/04/29 - use typicalgain now (default 10). allow display input.
-%
-% example:
 
 % internal notes:
 % - for cluster mode, need to make sure fitnonlinearmodel is compiled (compilemcc.m)
@@ -107,6 +189,12 @@ end
 if ~isfield(options,'wantglmdenoise') || isempty(options.wantglmdenoise)
   options.wantglmdenoise = 0;
 end
+if ~isfield(options,'hrf') || isempty(options.hrf)
+  options.hrf = [];
+end
+if ~isfield(options,'maxpolydeg') || isempty(options.maxpolydeg)
+  options.maxpolydeg = [];
+end
 if ~isfield(options,'seedmode') || isempty(options.seedmode)
   options.seedmode = [0 1 2];
 end
@@ -150,11 +238,19 @@ end
 meanvol = mean(catcell(dimtime,data),dimtime);
 
 % what HRF should we use?
-hrf = getcanonicalhrf(tr,tr)';
-numinhrf = length(hrf);
+if isempty(options.hrf)
+  options.hrf = getcanonicalhrf(tr,tr)';
+end
+numinhrf = length(options.hrf);
 
 % what polynomials should we use?
-maxpolydeg = cellfun(@(x) round(size(x,dimtime)*tr/60/2),data);
+if isempty(options.maxpolydeg)
+  options.maxpolydeg = cellfun(@(x) round(size(x,dimtime)*tr/60/2),data);
+end
+if isscalar(options.maxpolydeg)
+  options.maxpolydeg = repmat(options.maxpolydeg,[1 numruns]);
+end
+fprintf('using the following maximum polynomial degrees: %s\n',mat2str(options.maxpolydeg));
 
 % initialize cluster stuff
 if usecluster
@@ -178,7 +274,7 @@ end
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
 % define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),hrf,dd(:,prod(res)+1));
+modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
 model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
               2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
          {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
@@ -204,7 +300,7 @@ end
 % super-grid seed
 if ismember(2,options.seedmode)
   supergridseeds = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
-                                                   maxpolydeg,dimdata,dimtime, ...
+                                                   options.maxpolydeg,dimdata,dimtime, ...
                                                    options.typicalgain);
 end
 
@@ -352,7 +448,7 @@ opt = struct( ...
   'wantresampleruns',wantresampleruns, ...
   'resampling',resampling, ...
   'metric',@calccod, ...
-  'maxpolydeg',maxpolydeg, ...
+  'maxpolydeg',options.maxpolydeg, ...
   'wantremovepoly',1, ...
   'extraregressors',noiseregINPUT, ...
   'wantremoveextra',0, ...
@@ -458,6 +554,7 @@ results.numiters = reshape(results.numiters, [xyzsize 1]);
 results.meanvol =  meanvol;
 results.noisereg = noisereg;
 results.params =   a1.params;
+results.options = options;
 
 % save 'results' to a temporary file so we don't lose these precious results!
 file0 = [tempname '.mat'];
