@@ -1,6 +1,6 @@
-function seeds = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
+function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
 
-% function seeds = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
+% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
 %
 % <res> is [R C] with the resolution of the stimuli
 % <stimulus> is a cell vector of time x (pixels+1)
@@ -13,7 +13,8 @@ function seeds = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,max
 %
 % this is an internal function called by analyzePRF.m.  this function returns <seeds>
 % as a matrix of dimensions X x Y x Z x parameters (or XYZ x parameters)
-% with the best seed from the super-grid.
+% with the best seed from the super-grid.  also, returns <rvalues> as X x Y x Z
+% (or XYZ x 1) with the corresponding correlation (r) values.
 
 % internal notes:
 % - note that the gain seed is fake (it is not set the correct value but instead
@@ -97,15 +98,18 @@ datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % t
 
 % compute correlation and find maximum for each voxel
 chunks = chunking(1:size(datats,2),100);
+rvalues = {};
 bestseedix = {};
 fprintf('finding best seed for each voxel.\n');
 parfor p=1:length(chunks)
   % voxels x 1 with index of the best seed (max corr)
-  [mx,bestseedix{p}] = max(datats(:,chunks{p})' * predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
+  [rvalues{p},bestseedix{p}] = max(datats(:,chunks{p})' * predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
 end
+rvalues = catcell(1,rvalues);        % voxels x 1
 bestseedix = catcell(1,bestseedix);  % voxels x 1
 
 % prepare output
+rvalues = reshape(rvalues,[sizefull(data{1},dimdata) 1]);
 seeds = allseeds(bestseedix,:);  % voxels x parameters
 seeds(:,4) = typicalgain;        % set gain to typical gain
 seeds = reshape(seeds,[sizefull(data{1},dimdata) size(allseeds,2)]);

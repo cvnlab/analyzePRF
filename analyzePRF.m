@@ -33,7 +33,10 @@ function results = analyzePRF(stimulus,data,tr,options)
 %       0 means use generic large PRF seed
 %       1 means use generic small PRF seed
 %       2 means use best seed based on super-grid
-%     default: [0 1 2].
+%     default: [0 1 2].  a special case is to pass <seedmode> as -2.  this causes the
+%     best seed based on the super-grid to be returned as the final estimate, thereby
+%     bypassing the computationally expensive optimization procedure.  further notes
+%     on this case are given below.
 %   <xvalmode> (optional) is
 %     0 means just fit all the data
 %     1 means two-fold cross-validation (first half of runs; second half of runs)
@@ -127,7 +130,21 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   match to the data is identified.  Note that the supergrid seed may be different
 %   for different voxels.
 %
+% Regarding the "quick" mode:
+% - When <seedmode> is -2, optimization is not performed and instead the best seed
+%   based on the super-grid is returned as the final estimate.  If this case is used,
+%   we automatically enforce that:
+%   - opt.xvalmode is 0
+%   - opt.wantglmdenoise is 0
+%   - opt.vxs is []
+%   - opt.numperjob is []
+%   Also, in terms of outputs:
+%   - The <gain> output is not estimated, and gain values are just returned as <typicalgain>.
+%   - The <R2> output will contain correlation values (r) that range between -1 and 1.
+%   - The <resnorms> and <numiters> outputs will be empty.
+%
 % history:
+% 2014/10/20 - add -2 case for <seedmode>
 % 2014/06/17 - version 1.1
 % 2014/06/15 - add inputs <hrf> and <maxpolydeg>.
 % 2014/06/10 - version 1.0
@@ -215,7 +232,16 @@ if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
 end
 
 % massage
+wantquick = isequal(options.seedmode,-2);
 options.seedmode = union(options.seedmode(:),[]);
+
+% massage more
+if wantquick
+  opt.xvalmode = 0;
+  opt.wantglmdenoise = 0;
+  opt.vxs = 1:numvxs;
+  opt.numperjob = [];
+end
 
 % calc
 usecluster = ~isempty(options.numperjob);
@@ -298,8 +324,8 @@ if ismember(1,options.seedmode)
 end
 
 % super-grid seed
-if ismember(2,options.seedmode)
-  supergridseeds = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
+if any(ismember([2 -2],options.seedmode))
+  [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                    options.maxpolydeg,dimdata,dimtime, ...
                                                    options.typicalgain);
 end
@@ -312,210 +338,229 @@ else
   seedfun = @(vx) [seeds];
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE RESAMPLING STUFF
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PERFORM OPTIMIZATION
 
-% define wantresampleruns and resampling
-switch options.xvalmode
-case 0
-  wantresampleruns = [];
-  resampling = 0;
-case 1
-  wantresampleruns = 1;
-  half1 = copymatrix(zeros(1,length(data)),1:round(length(data)/2),1);
-  half2 = ~half1;
-  resampling = [(1)*half1 + (-1)*half2;
-                (-1)*half1 + (1)*half2];
-case 2
-  wantresampleruns = 0;
-  resampling = [];
-  for p=1:length(data)
-    half1 = copymatrix(zeros(1,size(data{p},2)),1:round(size(data{p},2)/2),1);
+% if this is true, we can bypass all of the optimization stuff!
+if wantquick
+
+else
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE RESAMPLING STUFF
+
+  % define wantresampleruns and resampling
+  switch options.xvalmode
+  case 0
+    wantresampleruns = [];
+    resampling = 0;
+  case 1
+    wantresampleruns = 1;
+    half1 = copymatrix(zeros(1,length(data)),1:round(length(data)/2),1);
     half2 = ~half1;
-    resampling = cat(2,resampling,[(1)*half1 + (-1)*half2;
-                                   (-1)*half1 + (1)*half2]);
-  end
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE STIMULUS AND DATA
-
-%%%%% CLUSTER CASE
-
-if usecluster
-
-  % save stimulus and transport to the remote server
-  while 1
-    filename0 = sprintf('stim%s.mat',randomword(5));  % file name
-    localfile0 = [tempdir '/' filename0];             % local path to file
-    remotefile0 = [remotedir '/' filename0];          % remote path to file
-  
-    % redo if file already exists locally or remotely
-    if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
-      continue;
+    resampling = [(1)*half1 + (-1)*half2;
+                  (-1)*half1 + (1)*half2];
+  case 2
+    wantresampleruns = 0;
+    resampling = [];
+    for p=1:length(data)
+      half1 = copymatrix(zeros(1,size(data{p},2)),1:round(size(data{p},2)/2),1);
+      half2 = ~half1;
+      resampling = cat(2,resampling,[(1)*half1 + (-1)*half2;
+                                     (-1)*half1 + (1)*half2]);
     end
-  
-    % save file and transport it
-    save(localfile0,'stimulus');
-    assert(0==unix(sprintf('rsync -av %s %s:"%s/"',localfile0,remotelogin,remotedir)));
-  
-    % record
-    localfilestodelete{end+1} = localfile0;
-    remotefilestodelete{end+1} = remotefile0;
-  
-    % stop
-    break;
   end
-  clear stimulus;  % don't let it bleed through anywhere!
 
-  % define stimulus
-  stimulus = @() loadmulti(remotefile0,'stimulus');
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE STIMULUS AND DATA
 
-  % save data and transport to the remote server
-  while 1
-    filename0 = sprintf('data%s',randomword(5));   % directory name that will contain 001.bin, etc.
-    localfile0 = [tempdir '/' filename0];          % local path to dir
-    remotefile0 = [remotedir '/' filename0];       % remote path to dir
+  %%%%% CLUSTER CASE
+
+  if usecluster
+
+    % save stimulus and transport to the remote server
+    while 1
+      filename0 = sprintf('stim%s.mat',randomword(5));  % file name
+      localfile0 = [tempdir '/' filename0];             % local path to file
+      remotefile0 = [remotedir '/' filename0];          % remote path to file
   
-    % redo if dir already exists locally or remotely
-    if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
-      continue;
+      % redo if file already exists locally or remotely
+      if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
+        continue;
+      end
+  
+      % save file and transport it
+      save(localfile0,'stimulus');
+      assert(0==unix(sprintf('rsync -av %s %s:"%s/"',localfile0,remotelogin,remotedir)));
+  
+      % record
+      localfilestodelete{end+1} = localfile0;
+      remotefilestodelete{end+1} = remotefile0;
+  
+      % stop
+      break;
     end
+    clear stimulus;  % don't let it bleed through anywhere!
+
+    % define stimulus
+    stimulus = @() loadmulti(remotefile0,'stimulus');
+
+    % save data and transport to the remote server
+    while 1
+      filename0 = sprintf('data%s',randomword(5));   % directory name that will contain 001.bin, etc.
+      localfile0 = [tempdir '/' filename0];          % local path to dir
+      remotefile0 = [remotedir '/' filename0];       % remote path to dir
   
-    % save files and transport them
-    assert(mkdir(localfile0));
-    for p=1:numruns
-      savebinary([localfile0 sprintf('/%03d.bin',p)],'single',squish(data{p},dimdata)');  % notice squish
+      % redo if dir already exists locally or remotely
+      if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
+        continue;
+      end
+  
+      % save files and transport them
+      assert(mkdir(localfile0));
+      for p=1:numruns
+        savebinary([localfile0 sprintf('/%03d.bin',p)],'single',squish(data{p},dimdata)');  % notice squish
+      end
+      assert(0==unix(sprintf('rsync -av %s %s:"%s/"',localfile0,remotelogin,remotedir)));
+
+      % record
+      localfilestodelete{end+1} = localfile0;
+      remotefilestodelete{end+1} = remotefile0;
+
+      % stop
+      break;
     end
-    assert(0==unix(sprintf('rsync -av %s %s:"%s/"',localfile0,remotelogin,remotedir)));
+    clear data;
 
-    % record
-    localfilestodelete{end+1} = localfile0;
-    remotefilestodelete{end+1} = remotefile0;
+    % define data
+    binfiles = cellfun(@(x) [remotefile0 sprintf('/%03d.bin',x)],num2cell(1:numruns),'UniformOutput',0);
+    data = @(vxs) cellfun(@(x) double(loadbinary(x,'single',[0 numvxs],-vxs)),binfiles,'UniformOutput',0);
 
-    % stop
-    break;
-  end
-  clear data;
-
-  % define data
-  binfiles = cellfun(@(x) [remotefile0 sprintf('/%03d.bin',x)],num2cell(1:numruns),'UniformOutput',0);
-  data = @(vxs) cellfun(@(x) double(loadbinary(x,'single',[0 numvxs],-vxs)),binfiles,'UniformOutput',0);
-
-  % prepare the output directory name
-  while 1
-    filename0 = sprintf('prfresults%s',randomword(5));
-    localfile0 = [tempdir '/' filename0];
-    remotefile0 = [remotedir2 '/' filename0];
-    if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
-      continue;
+    % prepare the output directory name
+    while 1
+      filename0 = sprintf('prfresults%s',randomword(5));
+      localfile0 = [tempdir '/' filename0];
+      remotefile0 = [remotedir2 '/' filename0];
+      if exist(localfile0) || 0==unix(sprintf('ssh %s ls %s',remotelogin,remotefile0))
+        continue;
+      end
+      localfilestodelete{end+1} = localfile0;
+      localfilestodelete{end+1} = [localfile0 '.mat'];  % after consolidation
+      remotefilestodelete{end+1} = remotefile0;
+      break;
     end
-    localfilestodelete{end+1} = localfile0;
-    localfilestodelete{end+1} = [localfile0 '.mat'];  % after consolidation
-    remotefilestodelete{end+1} = remotefile0;
-    break;
-  end
-  outputdirlocal = localfile0;
-  outputdirremote = remotefile0;
-  outputdir = outputdirremote;
+    outputdirlocal = localfile0;
+    outputdirremote = remotefile0;
+    outputdir = outputdirremote;
 
-%%%%% NON-CLUSTER CASE
+  %%%%% NON-CLUSTER CASE
 
-else
+  else
 
-  stimulus = {stimulus};
-  data = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data,'UniformOutput',0);
-  outputdir = [];
+    stimulus = {stimulus};
+    data = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data,'UniformOutput',0);
+    outputdir = [];
 
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE OPTIONS
-
-% last-minute prep
-if iscell(noisereg)
-  noiseregINPUT = {noisereg};
-else
-  noiseregINPUT = noisereg;
-end
-
-% construct the options struct
-opt = struct( ...
-  'outputdir',outputdir, ...
-  'stimulus',stimulus, ...
-  'data',data, ...
-  'vxs',options.vxs, ...
-  'model',{model}, ...
-  'seed',seedfun, ...
-  'optimoptions',{{'Display' options.display 'Algorithm' 'levenberg-marquardt' 'MaxIter' options.maxiter}}, ...
-  'wantresampleruns',wantresampleruns, ...
-  'resampling',resampling, ...
-  'metric',@calccod, ...
-  'maxpolydeg',options.maxpolydeg, ...
-  'wantremovepoly',1, ...
-  'extraregressors',noiseregINPUT, ...
-  'wantremoveextra',0, ...
-  'dontsave',{{'modelfit' 'opt' 'vxsfull' 'modelpred' 'testdata'}});  % 'resnorms' 'numiters' 
-
-        %  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
-        %'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d));
-        %   % debugging:
-        %   chpcstimfile = '/stone/ext1/knk/HCPretinotopy/conimagesB.mat';
-        %   chpcdatadir2 = outputdir2;  % go back
-        %   opt.outputdir='~/temp1';
-        %   profile on;
-        %   results = fitnonlinearmodel(opt,100,100);
-        %   results = fitnonlinearmodel(opt,1,715233);
-        %   profsave(profile('info'),'~/inout/profile_results');
-        % %   modelfit = feval(modelfun,results.params,feval(stimulusINPUT));
-        % %   thedata = feval(dataINPUT,52948);
-        % %   pmatrix = projectionmatrix(constructpolynomialmatrix(304,0:3));
-        % %   figure; hold on;
-        % %   plot(pmatrix*thedata,'k-');
-        % %   plot(pmatrix*modelfit,'r-');
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIT MODEL
-
-%%%%% CLUSTER CASE
-
-if usecluster
-
-  % submit jobs
-  jobnames = {};
-  jobnames = [jobnames {makedirid(opt.outputdir,1)}];
-  jobids = [];
-  jobids = [jobids chpcrun(jobnames{end},'fitnonlinearmodel',options.numperjob, ...
-                           1,ceil(length(options.vxs)/options.numperjob),[], ...
-                           {'data' 'stimulus' 'bad' 'd' 'xx' 'yy' 'modelfun' 'model'})];
-
-  % record additional files to delete
-  for p=1:length(jobnames)
-    remotefilestodelete{end+1} = sprintf('~/sgeoutput/job_%s.*',jobnames{p});  % .o and .e files
-    remotefilestodelete{end+1} = sprintf('~/mcc/job_%s.mat',jobnames{p});
-    localfilestodelete{end+1} = sprintf('~/mcc/job_%s.mat',jobnames{p});
   end
 
-  % wait for jobs to finish
-  sgewaitjobs(jobnames,jobids,remotelogin,remoteuser);
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE OPTIONS
 
-  % download the results
-  assert(0==unix(sprintf('rsync -a %s:"%s" "%s/"',remotelogin,outputdirremote,tempdir)));
+  % last-minute prep
+  if iscell(noisereg)
+    noiseregINPUT = {noisereg};
+  else
+    noiseregINPUT = noisereg;
+  end
 
-  % consolidate the results
-  fitnonlinearmodel_consolidate(outputdirlocal);
+  % construct the options struct
+  opt = struct( ...
+    'outputdir',outputdir, ...
+    'stimulus',stimulus, ...
+    'data',data, ...
+    'vxs',options.vxs, ...
+    'model',{model}, ...
+    'seed',seedfun, ...
+    'optimoptions',{{'Display' options.display 'Algorithm' 'levenberg-marquardt' 'MaxIter' options.maxiter}}, ...
+    'wantresampleruns',wantresampleruns, ...
+    'resampling',resampling, ...
+    'metric',@calccod, ...
+    'maxpolydeg',options.maxpolydeg, ...
+    'wantremovepoly',1, ...
+    'extraregressors',noiseregINPUT, ...
+    'wantremoveextra',0, ...
+    'dontsave',{{'modelfit' 'opt' 'vxsfull' 'modelpred' 'testdata'}});  % 'resnorms' 'numiters' 
 
-  % load the results
-  a1 = load([outputdirlocal '.mat']);
+          %  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
+          %'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d));
+          %   % debugging:
+          %   chpcstimfile = '/stone/ext1/knk/HCPretinotopy/conimagesB.mat';
+          %   chpcdatadir2 = outputdir2;  % go back
+          %   opt.outputdir='~/temp1';
+          %   profile on;
+          %   results = fitnonlinearmodel(opt,100,100);
+          %   results = fitnonlinearmodel(opt,1,715233);
+          %   profsave(profile('info'),'~/inout/profile_results');
+          % %   modelfit = feval(modelfun,results.params,feval(stimulusINPUT));
+          % %   thedata = feval(dataINPUT,52948);
+          % %   pmatrix = projectionmatrix(constructpolynomialmatrix(304,0:3));
+          % %   figure; hold on;
+          % %   plot(pmatrix*thedata,'k-');
+          % %   plot(pmatrix*modelfit,'r-');
 
-%%%%% NON-CLUSTER CASE
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIT MODEL
 
-else
+  %%%%% CLUSTER CASE
 
-  a1 = fitnonlinearmodel(opt);
+  if usecluster
+
+    % submit jobs
+    jobnames = {};
+    jobnames = [jobnames {makedirid(opt.outputdir,1)}];
+    jobids = [];
+    jobids = [jobids chpcrun(jobnames{end},'fitnonlinearmodel',options.numperjob, ...
+                             1,ceil(length(options.vxs)/options.numperjob),[], ...
+                             {'data' 'stimulus' 'bad' 'd' 'xx' 'yy' 'modelfun' 'model'})];
+
+    % record additional files to delete
+    for p=1:length(jobnames)
+      remotefilestodelete{end+1} = sprintf('~/sgeoutput/job_%s.*',jobnames{p});  % .o and .e files
+      remotefilestodelete{end+1} = sprintf('~/mcc/job_%s.mat',jobnames{p});
+      localfilestodelete{end+1} = sprintf('~/mcc/job_%s.mat',jobnames{p});
+    end
+
+    % wait for jobs to finish
+    sgewaitjobs(jobnames,jobids,remotelogin,remoteuser);
+
+    % download the results
+    assert(0==unix(sprintf('rsync -a %s:"%s" "%s/"',remotelogin,outputdirremote,tempdir)));
+
+    % consolidate the results
+    fitnonlinearmodel_consolidate(outputdirlocal);
+
+    % load the results
+    a1 = load([outputdirlocal '.mat']);
+
+  %%%%% NON-CLUSTER CASE
+
+  else
+
+    a1 = fitnonlinearmodel(opt);
+
+  end
 
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE OUTPUT
 
+% depending on which analysis we did (quick or full optimization),
+% we have to get the outputs in a common format
+if wantquick
+  paramsA = permute(squish(supergridseeds,dimdata),[3 2 1]);  % fits x parameters x voxels
+  rA = squish(rvalues,dimdata)';                              % fits x voxels
+else
+  paramsA = a1.params;                                        % fits x parameters x voxels
+  rA = a1.trainperformance;                                   % fits x voxels
+end
+
 % calc
-numfits = size(a1.params,1);
+numfits = size(paramsA,1);
 
 % init
 clear results;
@@ -529,16 +574,18 @@ results.resnorms = cell(numvxs,1);
 results.numiters = cell(numvxs,1);
 
 % massage model parameters for output and put in 'results' struct
-results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - a1.params(:,1,:), ...
-                                                  a1.params(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
-results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - a1.params(:,1,:)).^2 + ...
-                                             (a1.params(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
-results.expt(options.vxs,:) =   permute(posrect(a1.params(:,5,:)),[3 1 2]);
-results.rfsize(options.vxs,:) = permute(abs(a1.params(:,3,:)) ./ sqrt(posrect(a1.params(:,5,:))),[3 1 2]);
-results.R2(options.vxs,:) =     permute(a1.trainperformance,[2 1]);
-results.gain(options.vxs,:) =   permute(posrect(a1.params(:,4,:)),[3 1 2]);
-results.resnorms(options.vxs) = a1.resnorms;
-results.numiters(options.vxs) = a1.numiters;
+results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - paramsA(:,1,:), ...
+                                                  paramsA(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
+results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - paramsA(:,1,:)).^2 + ...
+                                             (paramsA(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
+results.expt(options.vxs,:) =   permute(posrect(paramsA(:,5,:)),[3 1 2]);
+results.rfsize(options.vxs,:) = permute(abs(paramsA(:,3,:)) ./ sqrt(posrect(paramsA(:,5,:))),[3 1 2]);
+results.R2(options.vxs,:) =     permute(rA,[2 1]);
+results.gain(options.vxs,:) =   permute(posrect(paramsA(:,4,:)),[3 1 2]);
+if ~wantquick
+  results.resnorms(options.vxs) = a1.resnorms;
+  results.numiters(options.vxs) = a1.numiters;
+end
 
 % reshape
 results.ang =      reshape(results.ang,      [xyzsize numfits]);
@@ -553,7 +600,7 @@ results.numiters = reshape(results.numiters, [xyzsize 1]);
 % add some more stuff
 results.meanvol =  meanvol;
 results.noisereg = noisereg;
-results.params =   a1.params;
+results.params =   paramsA;
 results.options = options;
 
 % save 'results' to a temporary file so we don't lose these precious results!
@@ -563,27 +610,32 @@ save(file0,'results');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CLEAN UP
 
-%%%%% CLUSTER CASE
+% no clean up necessary in the quick case
+if ~wantquick
 
-if usecluster
+  %%%%% CLUSTER CASE
 
-  % delete local files and directories
-  for p=1:length(localfilestodelete)
-    if exist(localfilestodelete{p},'dir')  % first dir, then file
-      rmdir(localfilestodelete{p},'s');
-    elseif exist(localfilestodelete{p},'file')
-      delete(localfilestodelete{p});
+  if usecluster
+
+    % delete local files and directories
+    for p=1:length(localfilestodelete)
+      if exist(localfilestodelete{p},'dir')  % first dir, then file
+        rmdir(localfilestodelete{p},'s');
+      elseif exist(localfilestodelete{p},'file')
+        delete(localfilestodelete{p});
+      end
     end
+
+    % delete remote files and directories
+    for p=1:length(remotefilestodelete)
+      assert(0==unix(sprintf('ssh %s "rm -rf %s"',remotelogin,remotefilestodelete{p})));
+    end
+
+  %%%%% NON-CLUSTER CASE
+
+  else
+
   end
-
-  % delete remote files and directories
-  for p=1:length(remotefilestodelete)
-    assert(0==unix(sprintf('ssh %s "rm -rf %s"',remotelogin,remotefilestodelete{p})));
-  end
-
-%%%%% NON-CLUSTER CASE
-
-else
 
 end
 
