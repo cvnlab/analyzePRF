@@ -135,15 +135,21 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   based on the super-grid is returned as the final estimate.  If this case is used,
 %   we automatically enforce that:
 %   - opt.xvalmode is 0
-%   - opt.wantglmdenoise is 0
 %   - opt.vxs is []
 %   - opt.numperjob is []
 %   Also, in terms of outputs:
 %   - The <gain> output is not estimated, and gain values are just returned as <typicalgain>.
 %   - The <R2> output will contain correlation values (r) that range between -1 and 1.
+%     These correlation values reflect the correlation between the model prediction and the
+%     data after projecting out polynomial regressors and the noise regressors (if
+%     <wantglmdenoise> is specified) from both the model prediction and the data.
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
 % history:
+% 2014/11/10 - implement <wantglmdenoise> for the <seedmode> -2 case.
+%              also, now the super-grid seed computation now
+%              takes into account noise regressors (previously, the
+%              noise regressors were ignored).
 % 2014/10/20 - add -2 case for <seedmode>
 % 2014/06/17 - version 1.1
 % 2014/06/15 - add inputs <hrf> and <maxpolydeg>.
@@ -238,7 +244,6 @@ options.seedmode = union(options.seedmode(:),[]);
 % massage more
 if wantquick
   opt.xvalmode = 0;
-  opt.wantglmdenoise = 0;
   opt.vxs = 1:numvxs;
   opt.numperjob = [];
 end
@@ -327,7 +332,7 @@ end
 if any(ismember([2 -2],options.seedmode))
   [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                    options.maxpolydeg,dimdata,dimtime, ...
-                                                   options.typicalgain);
+                                                   options.typicalgain,noisereg);
 end
 
 % make a function that individualizes the seeds

@@ -1,6 +1,6 @@
-function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
+function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 
-% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain)
+% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 %
 % <res> is [R C] with the resolution of the stimuli
 % <stimulus> is a cell vector of time x (pixels+1)
@@ -10,6 +10,7 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % <dimdata> is number of dimensions that pertain to voxels
 % <dimtime> is the dimension that is the time dimension
 % <typicalgain> is a typical value for the gain in each time-series
+% <noisereg> is [] or a set of noise regressors (cell vector of matrices)
 %
 % this is an internal function called by analyzePRF.m.  this function returns <seeds>
 % as a matrix of dimensions X x Y x Z x parameters (or XYZ x parameters)
@@ -83,14 +84,17 @@ clear temp;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% prepare data and model predictions
 
-% construct polynomials and projection matrix
-polyregressors = {};
+% construct polynomials, noise regressors, and projection matrix
+pregressors = {};
 for p=1:length(maxpolydeg)
-  polyregressors{p} = constructpolynomialmatrix(size(data{p},dimtime),0:maxpolydeg(p));
+  pregressors{p} = constructpolynomialmatrix(size(data{p},dimtime),0:maxpolydeg(p));
+  if ~isempty(noisereg)
+    pregressors{p} = cat(2,pregressors{p},noisereg{p});
+  end
 end
-pmatrix = projectionmatrix(blkdiag(polyregressors{:}));
+pmatrix = projectionmatrix(blkdiag(pregressors{:}));
 
-% project out polynomials and scale to unit length
+% project out and scale to unit length
 predts = unitlength(pmatrix*predts,                                1,[],0);  % time x seeds   [NOTE: some are all NaN]
 datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
 
