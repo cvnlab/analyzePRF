@@ -16,6 +16,9 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % as a matrix of dimensions X x Y x Z x parameters (or XYZ x parameters)
 % with the best seed from the super-grid.  also, returns <rvalues> as X x Y x Z
 % (or XYZ x 1) with the corresponding correlation (r) values.
+%
+% history:
+% 2015/02/07 - make less memory intensive
 
 % internal notes:
 % - note that the gain seed is fake (it is not set the correct value but instead
@@ -25,6 +28,9 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 eccs = [0 0.00551 0.014 0.0269 0.0459 0.0731 0.112 0.166 0.242 0.348 0.498 0.707 1];
 angs = linspacecircular(0,2*pi,16);
 expts = [0.5 0.25 0.125];
+
+% calc
+numvxs = prod(sizefull(data{1},dimdata));  % total number of voxels
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% calculate a long list of potential seeds
 
@@ -96,18 +102,23 @@ pmatrix = projectionmatrix(blkdiag(pregressors{:}));
 
 % project out and scale to unit length
 predts = unitlength(pmatrix*predts,                                1,[],0);  % time x seeds   [NOTE: some are all NaN]
-datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
+  % OLD: datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% find the seed with the max correlation
 
 % compute correlation and find maximum for each voxel
-chunks = chunking(1:size(datats,2),100);
+chunks = chunking(1:numvxs,100);
 rvalues = {};
 bestseedix = {};
 fprintf('finding best seed for each voxel.\n');
 parfor p=1:length(chunks)
+
+  % project out and scale to unit length
+  datats = unitlength(pmatrix*catcell(2,cellfun(@(x) subscript(squish(x,dimdata),{chunks{p} ':'}),data,'UniformOutput',0))',1,[],0);  % time x voxels
+
   % voxels x 1 with index of the best seed (max corr)
-  [rvalues{p},bestseedix{p}] = max(datats(:,chunks{p})' * predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
+  [rvalues{p},bestseedix{p}] = max(datats'*predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
+
 end
 rvalues = catcell(1,rvalues);        % voxels x 1
 bestseedix = catcell(1,bestseedix);  % voxels x 1

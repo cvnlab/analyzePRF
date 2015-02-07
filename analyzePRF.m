@@ -146,6 +146,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
 % history:
+% 2015/02/07 - version 1.2
+% 2015/02/07 - make analyzePRFcomputesupergridseeds.m less memory intensive
 % 2014/11/10 - implement <wantglmdenoise> for the <seedmode> -2 case.
 %              also, now the super-grid seed computation now
 %              takes into account noise regressors (previously, the
