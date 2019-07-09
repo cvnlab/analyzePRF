@@ -1,5 +1,8 @@
 # analyzePRF
 
+___Forked by garikoitz to make edits and include it in the tool vistalab/PRFmodel___
+
+
 analyzePRF is a MATLAB toolbox for fitting population receptive field (pRF) models
 to fMRI data.  It is developed by Kendrick Kay (kendrick@post.harvard.edu).
 
