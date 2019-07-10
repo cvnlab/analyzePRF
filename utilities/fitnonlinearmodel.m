@@ -215,22 +215,39 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 % Example 1:
 % 
 % % first, a simple example
-% x = randn(100,1);
-% y = 2*x + 3 + randn(100,1);
-% opt = struct( ...
-%   'stimulus',[x ones(100,1)], ...
-%   'data',y, ...
-%   'model',{{[1 1] [-Inf -Inf; Inf Inf] @(pp,dd) dd*pp'}});
-% results = fitnonlinearmodel(opt);
+%{
+        x = randn(100,1);
+        y = 2*x + 3 + randn(100,1);
+        % Create stimulus, data and model
+        stimulus = [x ones(100,1)];
+        data     = y;
+        % model has the data to feed the parameters in lsqcurvefit
+        % model = {{[1 1]    [-Inf -Inf; Inf Inf]     @(pp,dd) dd*pp'}};
+        % model = {{ x0    [lowerBound; upperBound]       fun}};
+        % x = lsqcurvefit(fun,x0,xdata,ydata,lb,ub)
+        model    = {{[1 1] [-Inf -Inf; Inf Inf] @(pp,dd) dd*pp'}};
+        opt = struct( ...
+                     'stimulus',stimulus, ...
+                     'data',data, ...
+                     'model',model);
+        results = fitnonlinearmodel(opt);
+        % Check the prediction
+        isequal(results.modelpred, (results.params*stimulus')')
+
+%} 
+
 % 
-% % now, try 100 bootstraps
-% opt.resampling = 100;
-% opt.optimoptions = {'Display' 'off'};  % turn off reporting
-% results = fitnonlinearmodel(opt);
+%{
+        opt.resampling = 100;
+        opt.optimoptions = {'Display' 'off'};  % turn off reporting
+        results = fitnonlinearmodel(opt);
+%}
 % 
 % % now, try leave-one-out cross-validation
-% opt.resampling = -(2*(eye(100) - 0.5));
-% results = fitnonlinearmodel(opt);
+%{
+opt.resampling = -(2*(eye(100) - 0.5));
+results = fitnonlinearmodel(opt);
+%} 
 % 
 % Example 2:
 % 
@@ -468,7 +485,8 @@ if ~isfield(opt,'wantremoveextra') || isempty(opt.wantremoveextra)
   opt.wantremoveextra = 1;
 end
 if ~isfield(opt,'dontsave') || (isempty(opt.dontsave) && ~iscell(opt.dontsave))
-  opt.dontsave = {'modelfit' 'numiters' 'resnorms'};
+  % opt.dontsave = {'modelfit' 'numiters' 'resnorms'};
+  opt.dontsave = {'numiters' 'resnorms'};
 end
 if ~iscell(opt.dontsave)
   opt.dontsave = {opt.dontsave};
@@ -582,8 +600,11 @@ clear temp;
 switch resamplingmode
 case 'full'
   trainfun = {@(x) catcell(1,x)};
-  testfun =  {@(x) []};
-case 'xval'
+  % GLU: If testfun is empty, then it does not give the modelpred values back.
+  % Even though it is not correct, let's make testfun the same as trainfun to
+  % have some values. 
+  % testfun =  {@(x) []};
+  testfun = {@(x) catcell(1,x)};case 'xval'
   trainfun = {};
   testfun =  {};
   for p=1:size(opt.resampling,1)
@@ -621,6 +642,10 @@ end
 
 % loop over voxels
 clear results0;
+% GLU: he was using parfor here, but for testing with few voxels is anoying. 
+warning('We removed parfor for testing. To put it back go to function fitnonlinearmodel.m and put it back there')
+
+% parfor p=1:vnum
 parfor p=1:vnum
 
   % report
