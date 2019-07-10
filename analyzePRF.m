@@ -171,10 +171,10 @@ stime = clock;  % start time
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INTERNAL CONSTANTS
 
 % define
-remotedir = '/scratch/knk/input/';
-remotedir2 = '/scratch/knk/output/';
-remotelogin = 'knk@login2.chpc.wustl.edu';
-remoteuser = 'knk';
+% remotedir = '/scratch/knk/input/';
+% remotedir2 = '/scratch/knk/output/';
+% remotelogin = 'knk@login2.chpc.wustl.edu';
+% remoteuser = 'knk';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SETUP AND PREPARATION
 
@@ -257,7 +257,7 @@ usecluster = ~isempty(options.numperjob);
 for p=1:length(stimulus)
   stimulus{p} = squish(stimulus{p},2)';  % frames x pixels
   stimulus{p} = [stimulus{p} p*ones(size(stimulus{p},1),1)];  % add a dummy column to indicate run breaks
-  stimulus{p} = single(stimulus{p});  % make single to save memory
+  % stimulus{p} = single(stimulus{p});  % make single to save memory
 end
 
 % deal with data badness (set bad voxels to be always all 0)
@@ -312,6 +312,42 @@ model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
               2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
          {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
                    2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+
+%% Little effort to clarify the modelfun function. This is just a comment.
+
+% Inputs of the function
+%   pp = parameters matrix
+%   dd = data matrix
+% Components of the algorithm, from above:
+%   The model involves computing the dot-product between the stimulus and a 2D isotropic
+%   Gaussian, raising the result to an exponent, scaling the result by a gain factor,
+%   and then convolving the result with a hemodynamic response function (HRF).  Polynomial
+%   terms are included (on a run-by-run basis) to model the baseline signal level.
+
+% modelfun = @(pp,dd) ...  % Defines the inputs to the function, params (to be guessed) and data
+%            conv2run(...  % Defines the main function, a convolution. We will want to guess the params
+%               posrect(pp(4)) * ...  % FIRST part of the convolution. It has form A * B. This is A
+%                 (...                  % B starts here. Separate it as well
+%                   dd * ...               % Data matrix
+%                   [vflatten( ...         % Vector. vflatten just returns a vertical vector. Same as kk(:).
+%                         placematrix( ...    % Substitutes matrix 2 into matrix 1 depending on matrix 3
+%                              zeros(res), ...    % Matrix 1
+%                              makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / ... % Matrix 2: element1
+%                              (2*pi*abs(pp(3))^2) ...                                                 % Matrix 2: element2
+%                                     ) ...   % Close placematrix
+%                             )...          % Close vflatten 
+%                     ;0]...               % Adds a 0 to the flattened matrix (vector) at the end
+%                  ).^posrect(pp(5)),...% End of B part B of A*B part of the convolution. This is the parameter in the exponential
+%                options.hrf,...      % SECOND part of the convolution, the HRF signal
+%                dd(:,prod(res)+1) ...% THIRD part of the conv, according knk. Separates convs between runs. This third part is basically a categorization. See help conv2run
+%              );          % Close the convolution function
+% Now the model function needs to be incorporated into a model that lsqcurvefit understands
+% Create two different functions that, fitnonlinear.m will loop over the 2 functions. From above:
+%   A two-stage optimization strategy is used whereby all parameters excluding the
+%   exponent parameter are first optimized (holding the exponent parameter fixed) and 
+%   then all parameters are optimized (including the exponent parameter).  This 
+%   strategy helps avoid local minima.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
 
@@ -492,7 +528,7 @@ else
     'wantremovepoly',1, ...
     'extraregressors',noiseregINPUT, ...
     'wantremoveextra',0, ...
-    'dontsave',{{'modelfit' 'opt' 'vxsfull' 'modelpred' 'testdata'}});  % 'resnorms' 'numiters' 
+    'dontsave',{{'opt' 'vxsfull'}}); % GLU: we want to see the fit and testdata that goes to lsqcurvefit
 
           %  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
           %'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d));
@@ -609,6 +645,10 @@ results.meanvol =  meanvol;
 results.noisereg = noisereg;
 results.params =   paramsA;
 results.options = options;
+
+% added some more, to see model prediction and data that goes into lsqcurvefit
+results.modelpred = a1.modelpred';
+results.testdata  = a1.testdata';
 
 % save 'results' to a temporary file so we don't lose these precious results!
 file0 = [tempname '.mat'];
