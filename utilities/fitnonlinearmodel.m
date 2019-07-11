@@ -646,7 +646,7 @@ clear results0;
 warning('We removed parfor for testing. To put it back go to function fitnonlinearmodel.m and put it back there')
 
 % parfor p=1:vnum
-parfor p=1:vnum
+for p=1:vnum
 
   % report
   fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
