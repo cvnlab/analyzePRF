@@ -643,11 +643,11 @@ end
 % loop over voxels
 clear results0;
 % GLU: he was using parfor here, but for testing with few voxels is anoying. 
-warning('We removed parfor for testing. To put it back go to function fitnonlinearmodel.m and put it back there')
+% warning('We removed parfor for testing. To put it back go to function fitnonlinearmodel.m and put it back there')
+% for p=1:vnum
 
-% parfor p=1:vnum
-for p=1:vnum
-
+% for or parfor here
+parfor p=1:vnum
   % report
   fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
   vtime = clock;  % start time for current voxel

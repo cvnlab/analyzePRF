@@ -6,7 +6,7 @@
 %    http://kendrickkay.net/analyzePRF/exampledataset.mat)
 files = {'exampledataset.mat'};
 for p=1:length(files)
-  if ~exist(files{p},'file')
+  if ~exist(fullfile(pwd,files{p}),'file')
     fprintf('Downloading %s (please be patient).\n',files{p});
     urlwrite(sprintf('http://kendrickkay.net/analyzePRF/%s',files{p}),files{p});
     fprintf('Downloading is done!\n');

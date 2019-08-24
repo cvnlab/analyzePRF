@@ -146,6 +146,12 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
 % history:
+% 2019/08/23 - Major change: the <stimulus> variable is now no longer forced to become
+%              single format. This means the user controls whether computations are done
+%              in double or single format. Please note that behavior (including finicky
+%              local minima issues) can be highly dependent on the format. Parameter estimates
+%              may be substantially more accurate (and may take substantially more computational
+%              time / iterations to converge) if computations are performed in double format.
 % 2015/02/07 - version 1.2
 % 2015/02/07 - make analyzePRFcomputesupergridseeds.m less memory intensive
 % 2014/11/10 - implement <wantglmdenoise> for the <seedmode> -2 case.
@@ -257,7 +263,8 @@ usecluster = ~isempty(options.numperjob);
 for p=1:length(stimulus)
   stimulus{p} = squish(stimulus{p},2)';  % frames x pixels
   stimulus{p} = [stimulus{p} p*ones(size(stimulus{p},1),1)];  % add a dummy column to indicate run breaks
-  % stimulus{p} = single(stimulus{p});  % make single to save memory
+%% REMOVED ON AUG 23 2019!  THIS CHANGES PAST BEHAVIOR.
+%%  stimulus{p} = single(stimulus{p});  % make single to save memory
 end
 
 % deal with data badness (set bad voxels to be always all 0)
