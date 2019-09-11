@@ -1,4 +1,4 @@
-function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 
 % function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 %
@@ -27,7 +27,9 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % internal constants
 eccs = [0 0.00551 0.014 0.0269 0.0459 0.0731 0.112 0.166 0.242 0.348 0.498 0.707 1];
 angs = linspacecircular(0,2*pi,16);
-expts = [0.5 0.25 0.125];
+% GLU EDIT
+% expts = [0.5 0.25 0.125];
+expts = [1];
 
 % calc
 numvxs = prod(sizefull(data{1},dimdata));  % total number of voxels

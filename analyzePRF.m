@@ -330,15 +330,25 @@ model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
 % {
 % define the model (parameters are R C S G N)
 modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   1;
+model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
               2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   1;
+         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   NaN;
                    2*res(1)-1 2*res(2)-1 Inf  Inf 1] @(ss)modelfun}};
 %}
 
+% After Noah's suggestion
+% The NaN in the top row actually indicates that the parameter should not be fit. In the original version there are two rows in the model cell-array because the first row corresponds to the "fit only R, C, S, and G" step of the fits and the second row corresponds to the "start at the previously found point and fit all parameters including N" step of the fitting (this is how analyzePRF works I believe). So you should be able to tell it not to fit the n parameter by setting its lower-bound value to NaN.
+%{
+% define the model (parameters are R C S G N)
+modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+model = {{[] ...
+          [1-res(1)+1 1-res(2)+1 0    0   NaN;
+           2*res(1)-1 2*res(2)-1 Inf  Inf 1] ...
+          modelfun}};
+%}
 
-
-
+% To fix it to 1, I think you would need to modify the analyzePRF_computesupergridseeds 
+% function--the row `expts = [0.5 0.25 0.125];` should be just `expts = [1];`
                
 %% Little effort to clarify the modelfun function. This is just a comment.
 
@@ -383,14 +393,20 @@ seeds = [];
 
 % generic large seed
 if ismember(0,options.seedmode)
+  % edit GLU, we want CSS=1  
+  % seeds = [seeds;
+  %          (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 1];
 end
 
 % generic small seed
 if ismember(1,options.seedmode)
+  % edit GLU, we want CSS=1  
+  % seeds = [seeds;
+  %          (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 1];
 end
 
 % super-grid seed
