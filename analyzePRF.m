@@ -51,6 +51,9 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   <display> (optional) is 'iter' | 'final' | 'off'.  default: 'iter'.
 %   <typicalgain> (optional) is a typical value for the gain in each time-series.
 %     default: 10.
+%   <usecss> (optional) logical true/false value, if set to false: (1) changes
+%   the boundaries to [NaN 1] and (2) the seed values of the exponentials to be
+%   always 1. Default is true.
 %
 % Analyze pRF data and return the results.
 %
@@ -244,6 +247,10 @@ end
 if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
   options.typicalgain = 10;
 end
+if ~isfield(options,'usecss') || isempty(options.usecss)
+  options.usecss = true;
+end
+
 
 % massage
 wantquick = isequal(options.seedmode,-2);
@@ -313,42 +320,22 @@ end
 % pre-compute some cache
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
-
-
-% This is the old version
-%{
 % define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-              2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
-%}
+% Select the correct boundaries depending if we want CSS or not
+if options.usecss
+    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+    model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+        2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
+        {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
+        2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+else
+    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+    model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+        2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun} ...
+        {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   NaN;
+        2*res(1)-1 2*res(2)-1 Inf  Inf 1] @(ss)modelfun}};
+end
 
-
-% This is the new version
-% {
-% define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-              2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   NaN;
-                   2*res(1)-1 2*res(2)-1 Inf  Inf 1] @(ss)modelfun}};
-%}
-
-% After Noah's suggestion
-% The NaN in the top row actually indicates that the parameter should not be fit. In the original version there are two rows in the model cell-array because the first row corresponds to the "fit only R, C, S, and G" step of the fits and the second row corresponds to the "start at the previously found point and fit all parameters including N" step of the fitting (this is how analyzePRF works I believe). So you should be able to tell it not to fit the n parameter by setting its lower-bound value to NaN.
-%{
-% define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] ...
-          [1-res(1)+1 1-res(2)+1 0    0   NaN;
-           2*res(1)-1 2*res(2)-1 Inf  Inf 1] ...
-          modelfun}};
-%}
-
-% To fix it to 1, I think you would need to modify the analyzePRF_computesupergridseeds 
-% function--the row `expts = [0.5 0.25 0.125];` should be just `expts = [1];`
                
 %% Little effort to clarify the modelfun function. This is just a comment.
 
@@ -391,29 +378,30 @@ model = {{[] ...
 % init
 seeds = [];
 
+% Select the css expontial for the different seeds
+if options.usecss
+    cssexpt = 0.5;
+else
+    cssexpt = 1;
+end
+
 % generic large seed
 if ismember(0,options.seedmode)
-  % edit GLU, we want CSS=1  
-  % seeds = [seeds;
-  %          (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 1];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(cssexpt) options.typicalgain cssexpt];
 end
 
 % generic small seed
 if ismember(1,options.seedmode)
-  % edit GLU, we want CSS=1  
-  % seeds = [seeds;
-  %          (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 1];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(cssexpt)/10 options.typicalgain cssexpt];
 end
 
 % super-grid seed
 if any(ismember([2 -2],options.seedmode))
   [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                    options.maxpolydeg,dimdata,dimtime, ...
-                                                   options.typicalgain,noisereg);
+                                                   options.typicalgain,noisereg,options.usecss);
 end
 
 % make a function that individualizes the seeds
@@ -672,6 +660,19 @@ if ~wantquick
   results.resnorms(options.vxs) = a1.resnorms;
   results.numiters(options.vxs) = a1.numiters;
 end
+
+% Small sanity check. If usecss=false, results.expt need to be always one. 
+% Otherwise, throw an error:
+if ~(options.usecss)
+    if length(unique(results.expt))==1
+        if unique(results.expt) ~= 1
+            error('usecss is set to false, but the value of the exponential is not 1')
+        end
+    else
+        error('usecss is set to false, and there are more than one solutions for the exponential')
+    end
+end
+
 
 % reshape
 results.ang =      reshape(results.ang,      [xyzsize numfits]);
