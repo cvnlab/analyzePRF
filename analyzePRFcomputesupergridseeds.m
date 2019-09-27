@@ -1,6 +1,6 @@
-function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 
-% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+% function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 %
 % <res> is [R C] with the resolution of the stimuli
 % <stimulus> is a cell vector of time x (pixels+1)
@@ -24,6 +24,8 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % - note that the gain seed is fake (it is not set the correct value but instead
 %   to the <typicalgain>)
 
+verbosity = 'none';
+
 % internal constants
 eccs = [0 0.00551 0.014 0.0269 0.0459 0.0731 0.112 0.166 0.242 0.348 0.498 0.707 1];
 angs = linspacecircular(0,2*pi,16);
@@ -42,23 +44,25 @@ maxn = floor(log2(resmx));
 ssindices = 2.^(0:maxn);
 
 % construct full list of seeds (seeds x params) [R C S G N]
-fprintf('constructing seeds.\n');
+if strcmp(verbosity,'all')
+    fprintf('constructing seeds.\n');
+end
 allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),5);
 cnt = 1;
 for p=1:length(eccs)
-  for q=1:length(angs)
-    if p==1 && q>1  % for the center-of-gaze, only do the first angle
-      continue;
+    for q=1:length(angs)
+        if p==1 && q>1  % for the center-of-gaze, only do the first angle
+            continue;
+        end
+        for s=1:length(ssindices)
+            for r=1:length(expts)
+                allseeds(cnt,:) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
+                    (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
+                    ssindices(s)*sqrt(expts(r)) 1 expts(r)];
+                cnt = cnt + 1;
+            end
+        end
     end
-    for s=1:length(ssindices)
-      for r=1:length(expts)
-        allseeds(cnt,:) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
-                           (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
-                           ssindices(s)*sqrt(expts(r)) 1 expts(r)];
-        cnt = cnt + 1;
-      end
-    end
-  end
 end
 allseeds(cnt:end,:) = [];  % chop because of the omission above
 
@@ -67,11 +71,15 @@ allseeds(cnt:end,:) = [];  % chop because of the omission above
 % generate predicted time-series [note that some time-series are all 0]
 predts = zeros(sum(cellfun(@(x) size(x,1),stimulus)),size(allseeds,1),'single');  % time x seeds
 temp = catcell(1,stimulus);
-fprintf('generating super-grid time-series...'); tic
-parfor p=1:size(allseeds,1)
-  predts(:,p) = modelfun(allseeds(p,:),temp);
+if strcmp(verbosity,'all')
+    fprintf('generating super-grid time-series...'); tic
 end
-fprintf('done.'); toc
+parfor p=1:size(allseeds,1)
+    predts(:,p) = modelfun(allseeds(p,:),temp);
+end
+if strcmp(verbosity,'all')
+    fprintf('done.'); toc
+end
 clear temp;
 
 % % inspect for sanity on range and fineness [OBSOLETE]
@@ -93,16 +101,16 @@ clear temp;
 % construct polynomials, noise regressors, and projection matrix
 pregressors = {};
 for p=1:length(maxpolydeg)
-  pregressors{p} = constructpolynomialmatrix(size(data{p},dimtime),0:maxpolydeg(p));
-  if ~isempty(noisereg)
-    pregressors{p} = cat(2,pregressors{p},noisereg{p});
-  end
+    pregressors{p} = constructpolynomialmatrix(size(data{p},dimtime),0:maxpolydeg(p));
+    if ~isempty(noisereg)
+        pregressors{p} = cat(2,pregressors{p},noisereg{p});
+    end
 end
 pmatrix = projectionmatrix(blkdiag(pregressors{:}));
 
 % project out and scale to unit length
 predts = unitlength(pmatrix*predts,                                1,[],0);  % time x seeds   [NOTE: some are all NaN]
-  % OLD: datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
+% OLD: datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% find the seed with the max correlation
 
@@ -110,15 +118,17 @@ predts = unitlength(pmatrix*predts,                                1,[],0);  % t
 chunks = chunking(1:numvxs,100);
 rvalues = {};
 bestseedix = {};
-fprintf('finding best seed for each voxel.\n');
+if strcmp(verbosity,'all')
+    fprintf('finding best seed for each voxel.\n');
+end
 parfor p=1:length(chunks)
-
-  % project out and scale to unit length
-  datats = unitlength(pmatrix*catcell(2,cellfun(@(x) subscript(squish(x,dimdata),{chunks{p} ':'}),data,'UniformOutput',0))',1,[],0);  % time x voxels
-
-  % voxels x 1 with index of the best seed (max corr)
-  [rvalues{p},bestseedix{p}] = max(datats'*predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
-
+    
+    % project out and scale to unit length
+    datats = unitlength(pmatrix*catcell(2,cellfun(@(x) subscript(squish(x,dimdata),{chunks{p} ':'}),data,'UniformOutput',0))',1,[],0);  % time x voxels
+    
+    % voxels x 1 with index of the best seed (max corr)
+    [rvalues{p},bestseedix{p}] = max(datats'*predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
+    
 end
 rvalues = catcell(1,rvalues);        % voxels x 1
 bestseedix = catcell(1,bestseedix);  % voxels x 1
