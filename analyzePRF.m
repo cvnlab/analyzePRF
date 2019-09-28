@@ -313,13 +313,27 @@ end
 % pre-compute some cache
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
-% define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-              2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+% define the model with a call out to the external function modelCore
+modelfun = @(pp,dd) modelCore(pp,dd,xx,yy,res,resmx,options.hrf);
 
+% Model bounds. The NaN in the lb indicates that these parameters are fixed
+% Parameters are:
+%   xPos, yPos, sigma, amplitude, gain, hrfShift
+lbM1 = [1-res(1)+1 1-res(2)+1 0    0   NaN	NaN];
+ub = [2*res(1)-1 2*res(2)-1 Inf  Inf Inf 2];
+
+% Initial model, with the compressive non-linearity fixed
+M1 = {[] [lbM1; ub] modelfun};
+
+% Second model, which takes the params from the first stage to generate a
+% seed for model fitting, allowing the compressive non-linearity parameter
+% to vary
+lbM2 = [1-res(1)+1 1-res(2)+1 0    0   0	-2];
+M2 = {@(ss)ss [lbM2; ub] @(ss)modelfun};
+
+% Chain the sub-models into the full model variable
+model = {M1 M2};
+               
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
 
 % init
@@ -328,13 +342,13 @@ seeds = [];
 % generic large seed
 if ismember(0,options.seedmode)
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5 0];
 end
 
 % generic small seed
 if ismember(1,options.seedmode)
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5 0];
 end
 
 % super-grid seed
@@ -584,6 +598,7 @@ results.expt =     NaN*zeros(numvxs,numfits);
 results.rfsize =   NaN*zeros(numvxs,numfits);
 results.R2 =       NaN*zeros(numvxs,numfits);
 results.gain =     NaN*zeros(numvxs,numfits);
+results.hrfshift = NaN*zeros(numvxs,numfits);
 results.resnorms = cell(numvxs,1);
 results.numiters = cell(numvxs,1);
 
@@ -593,6 +608,7 @@ results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - paramsA(:,1,:),
 results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - paramsA(:,1,:)).^2 + ...
                                              (paramsA(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
 results.expt(options.vxs,:) =   permute(posrect(paramsA(:,5,:)),[3 1 2]);
+results.hrfshift(options.vxs,:) =   permute(posrect(paramsA(:,6,:)),[3 1 2]);
 results.rfsize(options.vxs,:) = permute(abs(paramsA(:,3,:)) ./ sqrt(posrect(paramsA(:,5,:))),[3 1 2]);
 results.R2(options.vxs,:) =     permute(rA,[2 1]);
 results.gain(options.vxs,:) =   permute(posrect(paramsA(:,4,:)),[3 1 2]);
@@ -608,6 +624,7 @@ results.expt =     reshape(results.expt,     [xyzsize numfits]);
 results.rfsize =   reshape(results.rfsize,   [xyzsize numfits]);
 results.R2 =       reshape(results.R2,       [xyzsize numfits]);
 results.gain =     reshape(results.gain,     [xyzsize numfits]);
+results.hrfshift = reshape(results.hrfshift, [xyzsize numfits]);
 results.resnorms = reshape(results.resnorms, [xyzsize 1]);
 results.numiters = reshape(results.numiters, [xyzsize 1]);
 
