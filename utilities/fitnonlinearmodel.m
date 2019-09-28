@@ -33,9 +33,9 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %     {X Y Z W} where
 %       X is the initial seed (1 x P).
 %       Y are the bounds (2 x P).  NaNs in the first row indicate parameters to fix.
-%       Z is a function that accepts two arguments, parameters (1 x P) and 
+%       Z is a function that accepts two arguments, parameters (1 x P) and
 %         stimuli (N x C), and outputs predicted responses (N x 1).
-%       W (optional) is a function that transforms stimuli into a new form prior 
+%       W (optional) is a function that transforms stimuli into a new form prior
 %         to model evaluation.
 %    OR
 %     {M1 M2 M3 ...} where M1 is of the form {X Y Z W} described above,
@@ -46,8 +46,8 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %       H is a function that takes fitted parameters (1 x P) from the previous model
 %         and outputs a function that accepts two arguments, parameters (1 x Pnew) and
 %         stimuli (N x C), and outputs predicted responses (N x 1).
-%       I (optional) is a function that takes fitted parameters (1 x P) from the 
-%         previous model and outputs a function that transforms stimuli into a 
+%       I (optional) is a function that takes fitted parameters (1 x P) from the
+%         previous model and outputs a function that transforms stimuli into a
 %         new form prior to model evaluation.
 %    OR
 %     M where M is a function that takes stimuli (N x C) and responses (N x 1) and
@@ -78,7 +78,7 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   <outputfcn> (optional) is a function suitable for use as an 'OutputFcn'.  If you
 %     supply <outputfcn>, it will take precedence over any 'OutputFcn' in <optimoptions>.
 %     The reason for <outputfcn> is that the data points being fitted will be passed as a
-%     fourth argument to <outputfcn> (if <outputfcn> accepts four arguments).  This 
+%     fourth argument to <outputfcn> (if <outputfcn> accepts four arguments).  This
 %     enables some useful functionality such as being able to visualize the model and
 %     the data during the optimization.
 %     In the linear-model case, <outputfcn> is ignored.
@@ -99,14 +99,14 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %       where D is the total number of runs or data points.
 %     V where V is a matrix of dimensions (cross-validation schemes) x (runs or data
 %       points).  Each row indicates a distinct cross-validation scheme, where 1 indicates
-%       training, -1 indicates testing, and 0 indicates to not use.  For example, 
-%       [1 1 -1 -1 0] specifies a scheme where the first two runs (or data points) are 
+%       training, -1 indicates testing, and 0 indicates to not use.  For example,
+%       [1 1 -1 -1 0] specifies a scheme where the first two runs (or data points) are
 %       used for training and the second two runs (or data points) are used for testing.
 %     Default: 0.
 %
 %   *** METRIC ***
 %   <metric> (optional) determine how model performance is quantified.  <metric> should
-%     be a function that accepts two column vectors (the first is the model; the second 
+%     be a function that accepts two column vectors (the first is the model; the second
 %     is the data) and outputs a number.  Default: @calccorrelation.
 %
 %   *** ADDITIONAL REGRESSORS ***
@@ -129,9 +129,9 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   *** OUTPUT-RELATED ***
 %   <dontsave> (optional) is a string or a cell vector of strings indicating outputs
 %     to omit when returning.  For example, you may want to omit 'testdata', 'modelpred',
-%     'modelfit', 'numiters', and 'resnorms' since they may use a lot of memory.  
+%     'modelfit', 'numiters', and 'resnorms' since they may use a lot of memory.
 %     If [] or not supplied, then we use the default of {'modelfit' 'numiters' 'resnorms'}.
-%     If {}, then we will return all outputs.  Note: <dontsave> can also refer to 
+%     If {}, then we will return all outputs.  Note: <dontsave> can also refer to
 %     auxiliary variables that are saved to the .mat files when <outputdir> is used.
 %   <dosave> (optional) is just like 'dontsave' except that the outputs specified here
 %     are guaranteed to be returned.  (<dosave> takes precedence over <dontsave>.)
@@ -149,7 +149,7 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 % - Deals with input and output issues (making it easy to process many individual
 %   voxels and evaluate different models)
 % - Deals with resampling (cross-validation and bootstrapping)
-% - In the case of nonlinear models, makes it easy to evaluate multiple initial 
+% - In the case of nonlinear models, makes it easy to evaluate multiple initial
 %   seeds (to avoid local minima)
 % - In the case of nonlinear models, makes it easy to perform stepwise fitting of models
 %
@@ -172,8 +172,8 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 % - 'modelfit' is resampling cases x time points x voxels.
 %     This is the model fit for each resampling scheme.  Here, by "model fit"
 %     we mean the fit for each of the original stimuli based on the parameters
-%     estimated in a given resampling case; we do not mean the fit for each of the 
-%     stimuli involved in the fitting.  (For example, if there are 100 stimuli and 
+%     estimated in a given resampling case; we do not mean the fit for each of the
+%     stimuli involved in the fitting.  (For example, if there are 100 stimuli and
 %     we are performing cross-validation, there will nevertheless be 100 time points
 %     in 'modelfit'.)  Also, note that 'modelfit' is the raw fit; it is not adjusted
 %     for <wantremovepoly> and <wantremoveextra>.
@@ -192,9 +192,9 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   by making it such that the prediction for a given data point is calculated as the
 %   average of the predicted responses for the individual stimulus frames associated with
 %   that data point.
-% - In the case of nonlinear models, to control the scale of the computations, in the 
-%   optimization call we divide the data by its standard deviation and apply the exact 
-%   same scaling to the model.  This has the effect of controlling the scale of the 
+% - In the case of nonlinear models, to control the scale of the computations, in the
+%   optimization call we divide the data by its standard deviation and apply the exact
+%   same scaling to the model.  This has the effect of controlling the scale of the
 %   residuals.  This last-minute scaling should have no effect on the final parameter estimates.
 %
 % History:
@@ -208,12 +208,12 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 % - 2013/09/04 - add totalnumvxs variable
 % - 2013/09/03 - allow <dontsave> to refer to the auxiliary variables
 % - 2013/09/02 - add 'modelfit' and adjust default for 'dontsave'; add 'dosave'
-% - 2013/08/28 - new outputs 'resnorms' and 'numiters'; last-minute data scaling; 
+% - 2013/08/28 - new outputs 'resnorms' and 'numiters'; last-minute data scaling;
 %                tweak default handling of 'dontsave'
 % - 2013/08/18 - Initial version.
 %
 % Example 1:
-% 
+%
 % % first, a simple example
 % x = randn(100,1);
 % y = 2*x + 3 + randn(100,1);
@@ -222,19 +222,19 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   'data',y, ...
 %   'model',{{[1 1] [-Inf -Inf; Inf Inf] @(pp,dd) dd*pp'}});
 % results = fitnonlinearmodel(opt);
-% 
+%
 % % now, try 100 bootstraps
 % opt.resampling = 100;
 % opt.optimoptions = {'Display' 'off'};  % turn off reporting
 % results = fitnonlinearmodel(opt);
-% 
+%
 % % now, try leave-one-out cross-validation
 % opt.resampling = -(2*(eye(100) - 0.5));
 % results = fitnonlinearmodel(opt);
-% 
+%
 % Example 2:
-% 
-% % try a more complicated example.  we use 'outputfcn' to 
+%
+% % try a more complicated example.  we use 'outputfcn' to
 % % visualize the data and model during the optimization.
 % x = (1:.1:10)';
 % y = evalgaussian1d([5 1 4 0],x);
@@ -265,24 +265,28 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   compute projection matrix based on concatenated regressors), multiple initial
 %   seeds are handled internally!, user must deal with model specifics like
 %   the HRF and positive rectification, massive clean up of the logic (e.g.
-%   runs and data points are treated as a single case), consolidation of 
+%   runs and data points are treated as a single case), consolidation of
 %   the different functions, drop support for data trials (not worth the
 %   implementation cost), drop support for NaN stimulus frames, hide the
 %   myriad optimization options from the input level, drop run-separated metrics,
-%   drop the stimulus transformation speed-up (it was getting implemented in a 
+%   drop the stimulus transformation speed-up (it was getting implemented in a
 %   non-general way)
 % - regularization is its own thing? own code module?
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% REPORT
 
-fprintf('*** fitnonlinearmodel: started at %s. ***\n',datestr(now));
+verbosity = 'voxel';
+if strcmp(verbosity,'all')
+    fprintf('*** fitnonlinearmodel: started at %s. ***\n',datestr(now));
+end
+
 stime = clock;  % start time
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% SETUP
 
 % deal with opt
 if ischar(opt)
-  opt = loadmulti(opt,'opt');
+    opt = loadmulti(opt,'opt');
 end
 
 % is <data> of case (4)?
@@ -290,206 +294,210 @@ isvxscase = isa(opt.data,'function_handle') && nargin(opt.data) > 0;
 
 % deal with outputdir
 if ~isfield(opt,'outputdir') || isempty(opt.outputdir)
-  opt.outputdir = [];
+    opt.outputdir = [];
 end
 wantsave = ~isempty(opt.outputdir);  % should we save results to disk?
 
 % deal with vxs
 if isfield(opt,'vxs')
-  if ischar(opt.vxs)
-    vxsfull = loadmulti(opt.vxs,'vxs');
-  else
-    vxsfull = opt.vxs;
-  end
-  vxsfull = sort(union([],flatten(vxsfull)));
-  totalnumvxs = length(vxsfull);
+    if ischar(opt.vxs)
+        vxsfull = loadmulti(opt.vxs,'vxs');
+    else
+        vxsfull = opt.vxs;
+    end
+    vxsfull = sort(union([],flatten(vxsfull)));
+    totalnumvxs = length(vxsfull);
 end
 
 % deal with chunksize and chunknum
 if ~exist('chunksize','var') || isempty(chunksize)
-  chunksize = [];  % deal with this later
+    chunksize = [];  % deal with this later
 end
 if ~exist('chunknum','var') || isempty(chunknum)
-  chunknum = 1;
+    chunknum = 1;
 end
 if ischar(chunksize)
-  chunksize = str2double(chunksize);
+    chunksize = str2double(chunksize);
 end
 if ischar(chunknum)
-  chunknum = str2double(chunknum);
+    chunknum = str2double(chunknum);
 end
 
 % deal with data (including load the data)
 if isa(opt.data,'function_handle')
-  fprintf('*** fitnonlinearmodel: loading data. ***\n');
-  if nargin(opt.data) == 0
-    data = feval(opt.data);
-    if iscell(data)
-      totalnumvxs = size(data{1},2);
-    else
-      totalnumvxs = size(data,2);
+    if strcmp(verbosity,'all')
+        fprintf('*** fitnonlinearmodel: loading data. ***\n');
     end
-  else  % note that in this case, vxs should have been specified,
+    if nargin(opt.data) == 0
+        data = feval(opt.data);
+        if iscell(data)
+            totalnumvxs = size(data{1},2);
+        else
+            totalnumvxs = size(data,2);
+        end
+    else  % note that in this case, vxs should have been specified,
         % so totalnumvxs should have already been calculated above.
-    if isempty(chunksize)
-      chunksize = length(vxsfull);
+        if isempty(chunksize)
+            chunksize = length(vxsfull);
+        end
+        vxs = chunking(vxsfull,chunksize,chunknum);
+        data = feval(opt.data,vxs);
     end
-    vxs = chunking(vxsfull,chunksize,chunknum);
-    data = feval(opt.data,vxs);
-  end
 else
-  data = opt.data;
-  if iscell(data)
-    totalnumvxs = size(data{1},2);
-  else
-    totalnumvxs = size(data,2);
-  end
+    data = opt.data;
+    if iscell(data)
+        totalnumvxs = size(data{1},2);
+    else
+        totalnumvxs = size(data,2);
+    end
 end
 if ~iscell(data)
-  data = {data};
+    data = {data};
 end
 
 % deal with chunksize
 if isempty(chunksize)
-  chunksize = totalnumvxs;  % default is all voxels
+    chunksize = totalnumvxs;  % default is all voxels
 end
 
 % if not isvxscase, then we may still need to do chunking
 if ~isvxscase
-  vxs = chunking(1:totalnumvxs,chunksize,chunknum);
-  if ~isequal(vxs,1:totalnumvxs)
-    for p=1:length(data)
-      data{p} = data{p}(:,vxs);
+    vxs = chunking(1:totalnumvxs,chunksize,chunknum);
+    if ~isequal(vxs,1:totalnumvxs)
+        for p=1:length(data)
+            data{p} = data{p}(:,vxs);
+        end
     end
-  end
 end
 
 % calculate the number of voxels to analyze in this function call
 vnum = length(vxs);
 
 % finally, since we have dealt with chunksize and chunknum, we can do some reporting
-fprintf(['*** fitnonlinearmodel: outputdir = %s, chunksize = %d, chunknum = %d\n'], ...
-  opt.outputdir,chunksize,chunknum);
+if strcmp(verbosity,'all')
+    fprintf(['*** fitnonlinearmodel: outputdir = %s, chunksize = %d, chunknum = %d\n'], ...
+        opt.outputdir,chunksize,chunknum);
+end
 
 % deal with model
 if ~isa(opt.model,'function_handle') && ~iscell(opt.model{1})
-  opt.model = {opt.model};
+    opt.model = {opt.model};
 end
 if ~isa(opt.model,'function_handle')
-  for p=1:length(opt.model)
-    if length(opt.model{p}) < 4 || isempty(opt.model{p}{4})
-      if p==1
-        opt.model{p}{4} = @identity;
-      else
-        opt.model{p}{4} = @(ss) @identity;
-      end
+    for p=1:length(opt.model)
+        if length(opt.model{p}) < 4 || isempty(opt.model{p}{4})
+            if p==1
+                opt.model{p}{4} = @identity;
+            else
+                opt.model{p}{4} = @(ss) @identity;
+            end
+        end
     end
-  end
 end
 
 % deal with seed
 if ~isfield(opt,'seed') || isempty(opt.seed)
-  opt.seed = [];
+    opt.seed = [];
 end
 
 % deal with optimization options
 if ~isfield(opt,'optimoptions') || isempty(opt.optimoptions)
-  opt.optimoptions = {};
+    opt.optimoptions = {};
 end
 if iscell(opt.optimoptions)
-  temp = optimset('Display','iter','FunValCheck','on', ...
-                  'MaxFunEvals',Inf,'MaxIter',Inf, ...
-                  'TolFun',1e-6,'TolX',1e-6, ...
-                  'OutputFcn',@(a,b,c) outputfcnsanitycheck(a,b,c,1e-6,10));
-  for p=1:length(opt.optimoptions)/2
-    temp.(opt.optimoptions{(p-1)*2+1}) = opt.optimoptions{(p-1)*2+2};
-  end
-  opt.optimoptions = temp;
-  clear temp;
+    temp = optimset('Display','iter','FunValCheck','on', ...
+        'MaxFunEvals',Inf,'MaxIter',Inf, ...
+        'TolFun',1e-6,'TolX',1e-6, ...
+        'OutputFcn',@(a,b,c) outputfcnsanitycheck(a,b,c,1e-6,10));
+    for p=1:length(opt.optimoptions)/2
+        temp.(opt.optimoptions{(p-1)*2+1}) = opt.optimoptions{(p-1)*2+2};
+    end
+    opt.optimoptions = temp;
+    clear temp;
 end
 if ~isfield(opt,'outputfcn') || isempty(opt.outputfcn)
-  opt.outputfcn = [];
+    opt.outputfcn = [];
 end
 
 % deal with resampling schemes
 if ~isfield(opt,'wantresampleruns') || isempty(opt.wantresampleruns)
-  if length(data) == 1
-    opt.wantresampleruns = 0;
-  else
-    opt.wantresampleruns = 1;
-  end
+    if length(data) == 1
+        opt.wantresampleruns = 0;
+    else
+        opt.wantresampleruns = 1;
+    end
 end
 if opt.wantresampleruns
-  numdataunits = length(data);
+    numdataunits = length(data);
 else
-  numdataunits = sum(cellfun(@(x) size(x,1),data));
+    numdataunits = sum(cellfun(@(x) size(x,1),data));
 end
 if ~isfield(opt,'resampling') || isempty(opt.resampling)
-  opt.resampling = 0;
+    opt.resampling = 0;
 end
 if isequal(opt.resampling,0)
-  resamplingmode = 'full';
+    resamplingmode = 'full';
 elseif ~iscell(opt.resampling) && numel(opt.resampling) > 1
-  resamplingmode = 'xval';
+    resamplingmode = 'xval';
 else
-  resamplingmode = 'boot';
+    resamplingmode = 'boot';
 end
 if isequal(resamplingmode,'boot')
-  if ~iscell(opt.resampling)
-    opt.resampling = {opt.resampling};
-  end
-  if length(opt.resampling) < 2 || isempty(opt.resampling{2})
-    opt.resampling{2} = sum(100*clock);
-  end
-  if length(opt.resampling) < 3 || isempty(opt.resampling{3})
-    opt.resampling{3} = ones(1,numdataunits);
-  end
+    if ~iscell(opt.resampling)
+        opt.resampling = {opt.resampling};
+    end
+    if length(opt.resampling) < 2 || isempty(opt.resampling{2})
+        opt.resampling{2} = sum(100*clock);
+    end
+    if length(opt.resampling) < 3 || isempty(opt.resampling{3})
+        opt.resampling{3} = ones(1,numdataunits);
+    end
 end
 
 % deal with metric
 if ~isfield(opt,'metric') || isempty(opt.metric)
-  opt.metric = @calccorrelation;
+    opt.metric = @calccorrelation;
 end
 
 % deal with additional regressors
 if ~isfield(opt,'maxpolydeg') || isempty(opt.maxpolydeg)
-  opt.maxpolydeg = NaN;
+    opt.maxpolydeg = NaN;
 end
 if length(opt.maxpolydeg) == 1
-  opt.maxpolydeg = repmat(opt.maxpolydeg,[1 length(data)]);
+    opt.maxpolydeg = repmat(opt.maxpolydeg,[1 length(data)]);
 end
 if ~isfield(opt,'wantremovepoly') || isempty(opt.wantremovepoly)
-  opt.wantremovepoly = 1;
+    opt.wantremovepoly = 1;
 end
 if ~isfield(opt,'extraregressors') || isempty(opt.extraregressors)
-  opt.extraregressors = [];
+    opt.extraregressors = [];
 end
 if ~isfield(opt,'wantremoveextra') || isempty(opt.wantremoveextra)
-  opt.wantremoveextra = 1;
+    opt.wantremoveextra = 1;
 end
 if ~isfield(opt,'dontsave') || (isempty(opt.dontsave) && ~iscell(opt.dontsave))
-  opt.dontsave = {'modelfit' 'numiters' 'resnorms'};
+    opt.dontsave = {'modelfit' 'numiters' 'resnorms'};
 end
 if ~iscell(opt.dontsave)
-  opt.dontsave = {opt.dontsave};
+    opt.dontsave = {opt.dontsave};
 end
 if ~isfield(opt,'dosave') || isempty(opt.dosave)
-  opt.dosave = {};
+    opt.dosave = {};
 end
 if ~iscell(opt.dosave)
-  opt.dosave = {opt.dosave};
+    opt.dosave = {opt.dosave};
 end
 
 % make outputdir if necessary
 if wantsave
-  mkdirquiet(opt.outputdir);
-  opt.outputdir = subscript(matchfiles(opt.outputdir),1,1);
-  outputfile = sprintf([opt.outputdir '/%06d.mat'],chunknum);
+    mkdirquiet(opt.outputdir);
+    opt.outputdir = subscript(matchfiles(opt.outputdir),1,1);
+    outputfile = sprintf([opt.outputdir '/%06d.mat'],chunknum);
 end
 
 % set random number seed
 if isequal(resamplingmode,'boot')
-  setrandstate({opt.resampling{2}});
+    setrandstate({opt.resampling{2}});
 end
 
 % calc
@@ -497,35 +505,39 @@ numtime = cellfun(@(x) size(x,1),data);
 
 % save initial time
 if wantsave
-  saveexcept(outputfile,[{'data'} setdiff(opt.dontsave,opt.dosave)]);
+    saveexcept(outputfile,[{'data'} setdiff(opt.dontsave,opt.dosave)]);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% LOAD SOME ITEMS
 
 % deal with stimulus
 if isa(opt.stimulus,'function_handle')
-  fprintf('*** fitnonlinearmodel: loading stimulus. ***\n');
-  stimulus = feval(opt.stimulus);
+    if strcmp(verbosity,'all')
+        fprintf('*** fitnonlinearmodel: loading stimulus. ***\n');
+    end
+    stimulus = feval(opt.stimulus);
 else
-  stimulus = opt.stimulus;
+    stimulus = opt.stimulus;
 end
 if ~iscell(stimulus)
-  stimulus = {stimulus};
+    stimulus = {stimulus};
 end
 stimulus = cellfun(@full,stimulus,'UniformOutput',0);
 
 % deal with extraregressors
 if isa(opt.extraregressors,'function_handle')
-  fprintf('*** fitnonlinearmodel: loading extra regressors. ***\n');
-  extraregressors = feval(opt.extraregressors);
+    if strcmp(verbosity,'all')
+        fprintf('*** fitnonlinearmodel: loading extra regressors. ***\n');
+    end
+    extraregressors = feval(opt.extraregressors);
 else
-  extraregressors = opt.extraregressors;
+    extraregressors = opt.extraregressors;
 end
 if isempty(extraregressors)
-  extraregressors = repmat({[]},[1 length(data)]);
+    extraregressors = repmat({[]},[1 length(data)]);
 end
 if ~iscell(extraregressors)
-  extraregressors = {extraregressors};
+    extraregressors = {extraregressors};
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% PRECOMPUTE SOME STUFF
@@ -533,88 +545,88 @@ end
 % construct polynomial regressors matrix
 polyregressors = {};
 for p=1:length(data)
-  if isnan(opt.maxpolydeg(p))
-    polyregressors{p} = zeros(numtime(p),0);
-  else
-    polyregressors{p} = constructpolynomialmatrix(numtime(p),0:opt.maxpolydeg(p));
-  end
+    if isnan(opt.maxpolydeg(p))
+        polyregressors{p} = zeros(numtime(p),0);
+    else
+        polyregressors{p} = constructpolynomialmatrix(numtime(p),0:opt.maxpolydeg(p));
+    end
 end
 
 % construct total regressors matrix for fitting purposes
 % (i.e. both polynomials and extra regressors)
-  % first, construct the run-wise regressors
+% first, construct the run-wise regressors
 tmatrix = {};
 for p=1:length(data)
-  tmatrix{p} = cat(2,polyregressors{p},extraregressors{p});
+    tmatrix{p} = cat(2,polyregressors{p},extraregressors{p});
 end
-  % then, separate them using blkdiag
+% then, separate them using blkdiag
 temp = blkdiag(tmatrix{:});
 cnt = 0;
 for p=1:length(data)
-  tmatrix{p} = temp(cnt+(1:size(tmatrix{p},1)),:);
-  cnt = cnt + size(tmatrix{p},1);
+    tmatrix{p} = temp(cnt+(1:size(tmatrix{p},1)),:);
+    cnt = cnt + size(tmatrix{p},1);
 end
 clear temp;
 
 % construct special regressors matrix for the purposes of the <metric>
-  % first, construct the run-wise regressors
+% first, construct the run-wise regressors
 smatrix = {};
 for p=1:length(data)
-  temp = [];
-  if opt.wantremovepoly
-    temp = cat(2,temp,polyregressors{p});
-  end
-  if opt.wantremoveextra
-    temp = cat(2,temp,extraregressors{p});
-  end
-  smatrix{p} = temp;
+    temp = [];
+    if opt.wantremovepoly
+        temp = cat(2,temp,polyregressors{p});
+    end
+    if opt.wantremoveextra
+        temp = cat(2,temp,extraregressors{p});
+    end
+    smatrix{p} = temp;
 end
-  % then, separate them using blkdiag
+% then, separate them using blkdiag
 temp = blkdiag(smatrix{:});
 cnt = 0;
 for p=1:length(data)
-  smatrix{p} = temp(cnt+(1:size(smatrix{p},1)),:);
-  cnt = cnt + size(smatrix{p},1);
+    smatrix{p} = temp(cnt+(1:size(smatrix{p},1)),:);
+    cnt = cnt + size(smatrix{p},1);
 end
 clear temp;
 
 % figure out trainfun and testfun for resampling
 switch resamplingmode
-case 'full'
-  trainfun = {@(x) catcell(1,x)};
-  testfun =  {@(x) []};
-case 'xval'
-  trainfun = {};
-  testfun =  {};
-  for p=1:size(opt.resampling,1)
-    trainix = find(opt.resampling(p,:) == 1);
-    testix =  find(opt.resampling(p,:) == -1);
-    if opt.wantresampleruns
-      trainfun{p} = @(x) catcell(1,x(trainix));
-      testfun{p} =  @(x) catcell(1,x(testix));
-    else
-      trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
-      testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
-    end
-  end
-case 'boot'
-  trainfun = {};
-  testfun = {};
-  for p=1:opt.resampling{1}
-    trainix = [];
-    for b=1:max(opt.resampling{3})
-      temp = opt.resampling{3}==b;
-      trainix = [trainix subscript(find(temp),ceil(rand(1,sum(temp))*sum(temp)))];
-    end
-    testix = [];
-    if opt.wantresampleruns
-      trainfun{p} = @(x) catcell(1,x(trainix));
-      testfun{p} =  @(x) catcell(1,x(testix));
-    else
-      trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
-      testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
-    end
-  end
+    case 'full'
+        trainfun = {@(x) catcell(1,x)};
+        testfun =  {@(x) []};
+    case 'xval'
+        trainfun = {};
+        testfun =  {};
+        for p=1:size(opt.resampling,1)
+            trainix = find(opt.resampling(p,:) == 1);
+            testix =  find(opt.resampling(p,:) == -1);
+            if opt.wantresampleruns
+                trainfun{p} = @(x) catcell(1,x(trainix));
+                testfun{p} =  @(x) catcell(1,x(testix));
+            else
+                trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
+                testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+            end
+        end
+    case 'boot'
+        trainfun = {};
+        testfun = {};
+        for p=1:opt.resampling{1}
+            trainix = [];
+            for b=1:max(opt.resampling{3})
+                temp = opt.resampling{3}==b;
+                trainix = [trainix subscript(find(temp),ceil(rand(1,sum(temp))*sum(temp)))];
+            end
+            testix = [];
+            if opt.wantresampleruns
+                trainfun{p} = @(x) catcell(1,x(trainix));
+                testfun{p} =  @(x) catcell(1,x(testix));
+            else
+                trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
+                testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+            end
+        end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% PERFORM THE FITTING
@@ -622,33 +634,36 @@ end
 % loop over voxels
 clear results0;
 parfor p=1:vnum
-
-  % report
-  fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
-  vtime = clock;  % start time for current voxel
-
-  % get data and hack it in
-  opt2 = opt;
-  opt2.data = cellfun(@(x) x(:,p),data,'UniformOutput',0);
-
-  % get seed and hack it in
-  if ~isempty(opt2.seed)
-    assert(~isa(opt2.model,'function_handle'));  % sanity check
-    if isa(opt2.seed,'function_handle')
-      seed0 = feval(opt2.seed,vxs(p));
-    else
-      seed0 = opt2.seed;
+    
+    % report
+    if any(strcmp(verbosity,{'all','voxel'}))
+        fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
     end
-    opt2.model{1}{1} = seed0;
-  end
-  
-  % call helper function to do the actual work
-  results0(p) = fitnonlinearmodel_helper(opt2,stimulus,tmatrix,smatrix,trainfun,testfun);
-
-  % report
-  fprintf('*** fitnonlinearmodel: voxel %d (%d of %d) took %.1f seconds. ***\n', ...
-          vxs(p),p,vnum,etime(clock,vtime));
-
+    vtime = clock;  % start time for current voxel
+    
+    % get data and hack it in
+    opt2 = opt;
+    opt2.data = cellfun(@(x) x(:,p),data,'UniformOutput',0);
+    
+    % get seed and hack it in
+    if ~isempty(opt2.seed)
+        assert(~isa(opt2.model,'function_handle'));  % sanity check
+        if isa(opt2.seed,'function_handle')
+            seed0 = feval(opt2.seed,vxs(p));
+        else
+            seed0 = opt2.seed;
+        end
+        opt2.model{1}{1} = seed0;
+    end
+    
+    % call helper function to do the actual work
+    results0(p) = fitnonlinearmodel_helper(opt2,stimulus,tmatrix,smatrix,trainfun,testfun);
+    
+    % report
+    if strcmp(verbosity,'all')
+        fprintf('*** fitnonlinearmodel: voxel %d (%d of %d) took %.1f seconds. ***\n', ...
+            vxs(p),p,vnum,etime(clock,vtime));
+    end
 end
 
 % consolidate results
@@ -665,25 +680,27 @@ results.resnorms = cat(2,{results0.resnorms});
 
 % kill unwanted outputs
 for p=1:length(opt.dontsave)
-
-  % if member of dosave, keep it!
-  if ismember(opt.dontsave{p},opt.dosave)
-
-  % if not, then kill it (if it exists)!
-  else
-    if isfield(results,opt.dontsave{p})
-      results = rmfield(results,opt.dontsave{p});
+    
+    % if member of dosave, keep it!
+    if ismember(opt.dontsave{p},opt.dosave)
+        
+        % if not, then kill it (if it exists)!
+    else
+        if isfield(results,opt.dontsave{p})
+            results = rmfield(results,opt.dontsave{p});
+        end
     end
-  end
-
+    
 end
 
 % save results
 if wantsave
-  save(outputfile,'-struct','results','-append');
+    save(outputfile,'-struct','results','-append');
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% REPORT
 
-fprintf('*** fitnonlinearmodel: ended at %s (%.1f minutes). ***\n', ...
+if strcmp(verbosity,'all')
+    fprintf('*** fitnonlinearmodel: ended at %s (%.1f minutes). ***\n', ...
         datestr(now),etime(clock,stime)/60);
+end
