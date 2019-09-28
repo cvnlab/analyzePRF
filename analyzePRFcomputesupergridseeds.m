@@ -47,7 +47,7 @@ ssindices = 2.^(0:maxn);
 if strcmp(verbosity,'all')
     fprintf('constructing seeds.\n');
 end
-allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),6);
+allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),length(modelBounds));
 cnt = 1;
 for p=1:length(eccs)
     for q=1:length(angs)
@@ -56,9 +56,11 @@ for p=1:length(eccs)
         end
         for s=1:length(ssindices)
             for r=1:length(expts)
-                allseeds(cnt,:) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
+                thisSeed = modelX0;
+                thisSeed(1:5) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
                     (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
-                    ssindices(s)*sqrt(expts(r)) 1 expts(r) 0];
+                    ssindices(s)*sqrt(expts(r)) 1 expts(r)];
+                allseeds(cnt,:) = thisSeed;
                 cnt = cnt + 1;
             end
         end
