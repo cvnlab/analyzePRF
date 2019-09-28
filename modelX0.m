@@ -11,7 +11,7 @@ function X0 = modelX0(res,resmx,gain,scale)
 %                           are expessed in percentage change terms, then
 %                           a value of 1 is appropriate, and if in terms of
 %                           proportion response, then 0.01.
-%   scale                 - Char vector. Indiates how big to make the
+%   scale                 - Char vector. Indicates how big to make the
 %                           receptive fields.
 %                           
 
