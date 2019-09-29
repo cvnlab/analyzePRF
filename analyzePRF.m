@@ -329,11 +329,9 @@ if options.usecss
         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
         2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
 else
-    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
     model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-        2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun} ...
-        {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   NaN;
-        2*res(1)-1 2*res(2)-1 Inf  Inf 1] @(ss)modelfun}};
+        2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun}};
 end
 
                

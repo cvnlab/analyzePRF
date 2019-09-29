@@ -642,11 +642,6 @@ end
 
 % loop over voxels
 clear results0;
-% GLU: he was using parfor here, but for testing with few voxels is anoying. 
-% warning('We removed parfor for testing. To put it back go to function fitnonlinearmodel.m and put it back there')
-% for p=1:vnum
-
-% for or parfor here
 parfor p=1:vnum
   % report
   fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
@@ -682,6 +677,8 @@ results.params = cat(3,results0.params);
 results.testdata = cat(2,results0.testdata);
 results.modelpred = cat(2,results0.modelpred);
 results.modelfit = cat(3,results0.modelfit);
+results.modelfit = results.modelpred;
+
 results.trainperformance = cat(1,results0.trainperformance).';
 results.testperformance  = cat(1,results0.testperformance).';
 results.aggregatedtestperformance = cat(2,results0.aggregatedtestperformance);
