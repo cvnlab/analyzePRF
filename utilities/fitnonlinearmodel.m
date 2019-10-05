@@ -275,8 +275,8 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% REPORT
 
-verbosity = 'voxel';
-if strcmp(verbosity,'all')
+verbosity = 'minimal';
+if ~strcmp(verbosity,'none')
     fprintf('*** fitnonlinearmodel: started at %s. ***\n',datestr(now));
 end
 
@@ -325,7 +325,7 @@ end
 
 % deal with data (including load the data)
 if isa(opt.data,'function_handle')
-    if strcmp(verbosity,'all')
+if ~strcmp(verbosity,'none')
         fprintf('*** fitnonlinearmodel: loading data. ***\n');
     end
     if nargin(opt.data) == 0
@@ -374,7 +374,7 @@ end
 vnum = length(vxs);
 
 % finally, since we have dealt with chunksize and chunknum, we can do some reporting
-if strcmp(verbosity,'all')
+if ~strcmp(verbosity,'none')
     fprintf(['*** fitnonlinearmodel: outputdir = %s, chunksize = %d, chunknum = %d\n'], ...
         opt.outputdir,chunksize,chunknum);
 end
@@ -512,7 +512,7 @@ end
 
 % deal with stimulus
 if isa(opt.stimulus,'function_handle')
-    if strcmp(verbosity,'all')
+    if ~strcmp(verbosity,'none')
         fprintf('*** fitnonlinearmodel: loading stimulus. ***\n');
     end
     stimulus = feval(opt.stimulus);
@@ -526,7 +526,7 @@ stimulus = cellfun(@full,stimulus,'UniformOutput',0);
 
 % deal with extraregressors
 if isa(opt.extraregressors,'function_handle')
-    if strcmp(verbosity,'all')
+    if ~strcmp(verbosity,'none')
         fprintf('*** fitnonlinearmodel: loading extra regressors. ***\n');
     end
     extraregressors = feval(opt.extraregressors);
@@ -660,7 +660,7 @@ parfor p=1:vnum
     results0(p) = fitnonlinearmodel_helper(opt2,stimulus,tmatrix,smatrix,trainfun,testfun);
     
     % report
-    if strcmp(verbosity,'all')
+    if any(strcmp(verbosity,{'all','voxel'}))
         fprintf('*** fitnonlinearmodel: voxel %d (%d of %d) took %.1f seconds. ***\n', ...
             vxs(p),p,vnum,etime(clock,vtime));
     end
@@ -700,7 +700,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% REPORT
 
-if strcmp(verbosity,'all')
+if ~strcmp(verbosity,'none')
     fprintf('*** fitnonlinearmodel: ended at %s (%.1f minutes). ***\n', ...
         datestr(now),etime(clock,stime)/60);
 end
