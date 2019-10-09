@@ -325,7 +325,7 @@ end
 
 % deal with data (including load the data)
 if isa(opt.data,'function_handle')
-if ~strcmp(verbosity,'none')
+    if ~strcmp(verbosity,'none')
         fprintf('*** fitnonlinearmodel: loading data. ***\n');
     end
     if nargin(opt.data) == 0
@@ -631,6 +631,14 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% PERFORM THE FITTING
 
+% Alert the user
+if ~any(strcmp(verbosity,{'all','voxel'}))
+    tic
+    fprintf('Fitting non-linear model:');
+    fprintf('| 0                      50                   100%% |\n');
+    fprintf('.\n');
+end    
+
 % loop over voxels
 clear results0;
 parfor p=1:vnum
@@ -638,6 +646,10 @@ parfor p=1:vnum
     % report
     if any(strcmp(verbosity,{'all','voxel'}))
         fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
+    else
+        if mod(p,round(vnum/50))==0
+            fprintf('\b.\n');
+        end
     end
     vtime = clock;  % start time for current voxel
     
