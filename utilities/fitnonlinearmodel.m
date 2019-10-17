@@ -634,7 +634,7 @@ end
 % Alert the user
 if ~any(strcmp(verbosity,{'all','voxel'}))
     tic
-    fprintf('Fitting non-linear model:');
+    fprintf('Fitting non-linear model:\n');
     fprintf('| 0                      50                   100%% |\n');
     fprintf('.\n');
 end    
