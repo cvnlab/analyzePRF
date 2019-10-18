@@ -1,4 +1,4 @@
-function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg,modelObj)
 
 % function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 %
@@ -47,7 +47,7 @@ ssindices = 2.^(0:maxn);
 if strcmp(verbosity,'all')
     fprintf('constructing seeds.\n');
 end
-allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),length(modelBounds));
+allseeds = zeros(length(eccs)*length(angs)*length(ssindices)*length(expts),length(modelObj.bounds));
 cnt = 1;
 for p=1:length(eccs)
     for q=1:length(angs)
@@ -56,7 +56,7 @@ for p=1:length(eccs)
         end
         for s=1:length(ssindices)
             for r=1:length(expts)
-                thisSeed = modelX0;
+                thisSeed = modelObj.initial;
                 thisSeed(1:5) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
                     (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
                     ssindices(s)*sqrt(expts(r)) 1 expts(r)];
@@ -77,7 +77,7 @@ if strcmp(verbosity,'all')
     fprintf('generating super-grid time-series...'); tic
 end
 parfor p=1:size(allseeds,1)
-    predts(:,p) = modelfun(allseeds(p,:),temp);
+    predts(:,p) = modelfun(allseeds(p,:));
 end
 if strcmp(verbosity,'all')
     fprintf('done.'); toc

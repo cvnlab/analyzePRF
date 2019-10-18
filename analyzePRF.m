@@ -244,6 +244,9 @@ end
 if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
   options.typicalgain = 10;
 end
+if ~isfield(options,'modelClass') || isempty(options.modelClass)
+  options.modelClass = 'prf';
+end
 
 % massage
 wantquick = isequal(options.seedmode,-2);
@@ -310,16 +313,20 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE MODEL
 
-% pre-compute some cache
-[d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
+% Create the model object
+modelObj = pRF_timeShift(stimulus{1},res,options.hrf);
+
+% Assign the typical gain parameter
+modelObj.gain = options.typicalgain;
 
 % define the model with a call out to the external function modelCore
-modelfun = @(pp,dd) modelCore(pp,dd,xx,yy,res,resmx,options.hrf);
+modelfun = @(pp) modelObj.forward(pp);
 
 % Model bounds. The NaN in the lb indicates that these parameters are fixed
 % Parameters are:
 %   xPos, yPos, sigma, amplitude, gain, hrfShift
-[lb,ub] = modelBounds(res,[5 6]);
+modelObj.fixed = [5 6];
+[lb,ub] = modelObj.bounds();
 
 % Initial model, with the compressive non-linearity fixed
 M1 = {[] [lb; ub] modelfun};
@@ -327,7 +334,8 @@ M1 = {[] [lb; ub] modelfun};
 % Second model, which takes the params from the first stage to generate a
 % seed for model fitting, allowing the compressive non-linearity parameter
 % to vary
-[lb,ub] = modelBounds(res);
+modelObj.fixed = [];
+[lb,ub] = modelObj.bounds();
 M2 = {@(ss)ss [lb; ub] @(ss)modelfun};
 
 % Chain the sub-models into the full model variable
@@ -340,19 +348,21 @@ seeds = [];
 
 % generic large seed
 if ismember(0,options.seedmode)
-  seeds = [ seeds; modelX0(res,resmx,options.typicalgain,'large') ];
+    modelObj.seedScale = 'large';
+  seeds = [ seeds; modelObj.initial() ];
 end
 
 % generic small seed
 if ismember(1,options.seedmode)
-  seeds = [ seeds; modelX0(res,resmx,options.typicalgain,'small') ];
+    modelObj.seedScale = 'small';
+  seeds = [ seeds; modelObj.initial() ];
 end
 
 % super-grid seed
 if any(ismember([2 -2],options.seedmode))
   [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                    options.maxpolydeg,dimdata,dimtime, ...
-                                                   options.typicalgain,noisereg);
+                                                   options.typicalgain,noisereg,modelObj);
 end
 
 % make a function that individualizes the seeds

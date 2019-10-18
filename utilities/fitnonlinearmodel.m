@@ -641,7 +641,8 @@ end
 
 % loop over voxels
 clear results0;
-parfor p=1:vnum
+%parfor p=1:vnum
+for p=1:vnum
     
     % report
     if any(strcmp(verbosity,{'all','voxel'}))
