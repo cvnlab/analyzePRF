@@ -1,4 +1,4 @@
-function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg,modelObj)
+function [seeds,rvalues] = analyzePRFcomputesupergridseeds(modelObj,res,stimulus,data,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 
 % function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
 %
@@ -77,7 +77,7 @@ if strcmp(verbosity,'all')
     fprintf('generating super-grid time-series...'); tic
 end
 parfor p=1:size(allseeds,1)
-    predts(:,p) = modelfun(allseeds(p,:));
+    predts(:,p) = modelObj.forward(allseeds(p,:));
 end
 if strcmp(verbosity,'all')
     fprintf('done.'); toc
@@ -111,7 +111,7 @@ end
 pmatrix = projectionmatrix(blkdiag(pregressors{:}));
 
 % project out and scale to unit length
-predts = unitlength(pmatrix*predts,                                1,[],0);  % time x seeds   [NOTE: some are all NaN]
+predts = unitlength(pmatrix*predts,1,[],0);  % time x seeds   [NOTE: some are all NaN]
 % OLD: datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% find the seed with the max correlation

@@ -2,6 +2,9 @@ classdef pRF_timeShift < handle
     
     properties (Constant)
         nParams = 6;
+        nStages = 2;
+        floatSet = {[1 2 3 4],[1 2 3 4 5 6]};
+        fixSet = {[5 6],[]};
     end
 
     % Private properties
