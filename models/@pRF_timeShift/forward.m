@@ -1,6 +1,7 @@
-function signal = forward(obj, pp)
+function fit = forward(obj, pp)
 % Forward model for the pRF search
 
+% Obj variables
 stimulus = obj.stimulus;
 res = obj.res;
 hrf = obj.hrf;
@@ -33,7 +34,7 @@ hrf = fshift(hrf,pp(6));
 
 % Convolve the neural signal by the passed hrf, respecting the boundaries
 % betwen the acquisitions
-signal = conv2run(neuralSignal,hrf,acqGroups);
+fit = conv2run(neuralSignal,hrf,acqGroups);
 
 end
 

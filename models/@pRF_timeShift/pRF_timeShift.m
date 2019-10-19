@@ -6,25 +6,26 @@ classdef pRF_timeShift < handle
         floatSet = {[1 2 3 4],[1 2 3 4 5 6]};
         fixSet = {[5 6],[]};
     end
-
+    
     % Private properties
     properties (GetAccess=private)
         xx
         yy
     end
-
+    
     % Fixed after object creation
     properties (SetAccess=private)
         stimulus
         res
         hrf
     end
-
+    
     % These may be modified after object creation
     properties (SetAccess=public)
         fixed
         seedScale
         gain
+        verbose
     end
     
     methods
@@ -39,6 +40,7 @@ classdef pRF_timeShift < handle
             obj.gain = 30;
             obj.fixed = [];
             obj.seedScale = 'large';
+            obj.verbose = true;
             
             % Create and cache the 2D Gaussian in a private property
             [~,obj.xx,obj.yy] = makegaussian2d(max(res),2,2,2,2);
@@ -47,7 +49,10 @@ classdef pRF_timeShift < handle
         % Methods
         x0 = initial(obj)
         [lb, ub] = bounds(obj)
-        signal = forward(obj, params)
-        
+        signal = prep(obj, signal)
+        fit = forward(obj, params)
+        metric = metric(obj, signal, x)
+        seeds = seeds(obj, data, vxs)
+        results = results(obj, params, metric)
     end
 end
