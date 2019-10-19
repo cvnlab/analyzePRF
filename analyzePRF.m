@@ -2,18 +2,19 @@ function results = analyzePRF(stimulus,data,varargin)
 
 
 %% input parser
-p = inputParser; p.KeepUnmatched = true;
+p = inputParser; p.KeepUnmatched = false;
 
 % Required
 p.addRequired('stimulus',@(x)(iscell(x) || ismatrix(x)));
 p.addRequired('data',@(x)(iscell(x) || ismatrix(x)));
 
-p.addParameter('modelClass','prf_timeShift',@ischar);
+p.addParameter('modelClass','pRF_timeShift',@ischar);
+p.addParameter('modelOpts',{'typicalGain',30},@iscell);
+p.addParameter('modelPayload',{},@iscell);
 p.addParameter('tr',0.8,@isscalar);
 p.addParameter('vxs',[],@isvector);
 p.addParameter('hrf',[],@isvector);
 p.addParameter('maxIter',500,@isscalar);
-p.addParameter('typicalGain',30,@isscalar);
 p.addParameter('verbose',true,@islogical);
 
 % parse
@@ -39,7 +40,6 @@ end
 
 % Identify the row and columns of the data matrix
 dimdata = 1;
-dimtime = 2;
 totalVxs = size(data{1},dimdata);
 
 % Define vxs (the voxel/vertex set to process)
@@ -62,18 +62,6 @@ for ii=1:length(stimulus)
 end
 
 
-
-%% Data prep
-nAcqs = length(data);
-
-% deal with data badness (set bad voxels to be always all 0)
-bad = cellfun(@(x) any(~isfinite(x),dimtime) | all(x==0,dimtime),data,'UniformOutput',0);  % if non-finite or all 0
-bad = any(cat(dimtime,bad{:}),dimtime);  % badness in ANY run
-for ii=1:nAcqs
-    data{ii}(repmat(bad,[ones(1,dimdata) size(data{ii},dimtime)])) = 0;
-end
-
-
 %% HRF prep
 if isempty(p.Results.hrf)
     hrf = getcanonicalhrf(p.Results.tr,p.Results.tr)';
@@ -85,36 +73,18 @@ end
 %% Set up model
 
 % Create the model object
-model = pRF_timeShift(stimulus,res,hrf);
-
-% Assign the typical gain parameter
-model.gain = p.Results.typicalGain;
+model = feval(p.Results.modelClass,stimulus,res,hrf,...
+    'payload',p.Results.modelPayload, ...
+    p.Results.modelOpts{:});
 
 % Set model verbosity
 model.verbose = verbose;
 
+% Prep the raw data
+data = model.prep(data);
+
 % Generate seeds
 seeds = model.seeds(data,vxs);
-
-% % init
-% seeds = [];
-%
-% % generic large seed
-% modelObj.seedScale = 'large';
-% seeds = [ seeds; modelObj.initial() ];
-%
-% % generic small seed
-% modelObj.seedScale = 'small';
-% seeds = [ seeds; modelObj.initial() ];
-%
-%
-% % make a function that individualizes the seeds
-% if exist('supergridseeds','var')
-%     seedfun = @(vx) [[seeds];
-%         [subscript(squish(supergridseeds,dimdata),{vx ':'})]];
-% else
-%     seedfun = @(vx) [seeds];
-% end
 
 
 %% Fit the data
@@ -135,7 +105,7 @@ if verbose
 end
 
 % Loop through the voxels/vertices in vxs
-parfor ii=1:length(vxs)
+for ii=1:length(vxs)
     
     % Update progress bar
     if verbose && mod(ii,round(length(vxs)/50))==0
@@ -147,28 +117,35 @@ parfor ii=1:length(vxs)
     data4 = catcell(1,data3(1));
     datastd = std(data4);
     data5 = data4 / datastd;
-    data6 = data5 - mean(data5);
+    data6 = model.clean(data5);
     
-    %     seeds = seedfun(ii);
-    %     for ss = 1:size(seeds,1)
-    %
+    % Loop over seed sets
+    seedParams = nan(length(seeds),model.nParams);
+    seedMetric = nan(length(seeds));
     
-    seed = seeds(vxs(ii),:);
-    x0 = seed;
-    
-    for bb = 1:model.nStages
-        x0 = lsqcurvefit(...
-            @(x,y) double(model.forward([x x0(model.fixSet{bb})]) / datastd),...
-            x0(model.floatSet{bb}),...
-            [],...
-            double(data6),[],[],options);
-        x0 = [x0 seed(model.fixSet{bb})];
+    for ss = 1:length(seeds)
+        seed = seeds{ss}(vxs(ii),:);
+        x0 = seed;
+        
+        % Loop over model stages
+        for bb = 1:model.nStages
+            x0 = lsqcurvefit(...
+                @(x,y) double(model.forward([x x0(model.fixSet{bb})]) / datastd),...
+                x0(model.floatSet{bb}),...
+                [],...
+                double(data6),[],[],options);
+            x0 = [x0 seed(model.fixSet{bb})];
+        end
+        
+        seedParams(ss,:) = x0;
+        seedMetric(ss) = model.metric(data6,x0);
     end
     
-    parParams(ii,:) = x0;
-    parMetric(ii) = model.metric(data6,x0);
+    [~,bestSeedIdx]=max(seedMetric);
     
-    %     end
+    parParams(ii,:) = seedParams(bestSeedIdx,:);
+    parMetric(ii) = seedMetric(bestSeedIdx);
+    
 end
 
 % report completion of loop
@@ -188,7 +165,17 @@ clear parMetric;
 
 
 %% Obtain the results
-results = model.results(obj, params, metric);
-results.meta.p = p;
+results = model.results(params, metric);
+
+% Add the model information
+results.model.class = p.Results.modelClass;
+results.model.inputs =  {model.stimulus, model.res, model.hrf};
+results.model.opts =  p.Results.modelOpts;
+results.model.payload =  p.Results.modelPayload;
+
+% Store the calling options
+results.meta.vxs = p.Results.vxs;
+results.meta.tr = p.Results.tr;
+results.meta.maxIter = p.Results.maxIter;
 
 end

@@ -86,7 +86,8 @@ end
 
 predts = unitlength(predts,1,[],0);
 
-predts = obj.prep(predts);
+% Clean the time series
+predts = obj.clean(predts);
 
 
 %% Match model predictions to data
@@ -96,7 +97,7 @@ chunks = chunking(1:length(vxs),100);
 bestseedix = {};
 
 % Set up a function to avoid broadcasting the obj to the parpool
-prepFun = @(x) obj.prep(x);
+cleanFun = @(x) obj.clean(x);
 
 % Loop through chunks
 parfor p=1:length(chunks)
@@ -104,8 +105,8 @@ parfor p=1:length(chunks)
     % time x voxels
     datats = unitlength(catcell(2,cellfun(@(x) subscript(squish(x,1),{vxs(chunks{p}) ':'}),data,'UniformOutput',0))',1,[],0);
     
-    % Implement the time series prep stage
-    datats = prepFun(datats);
+    % Implement the time series clean stage
+    datats = cleanFun(datats);
     
     % voxels x 1 with index of the best seed (max corr)
     [~,bestseedix{p}] = max(datats'*predts,[],2);  % voxels x seeds -> max corr along dim 2 [NaN is ok]
@@ -118,6 +119,8 @@ vxsSeeds = allseeds(bestseedix,:);  % voxels x parameters
 totalVxs = size(data{1},1);
 seeds = nan(totalVxs,nParams);
 seeds(vxs,:)=vxsSeeds;
+
+seeds = {seeds};
 
 end
 

@@ -21,4 +21,10 @@ results.expt =     params(:,5);
 results.hrfshift = params(:,6);
 results.R2 =       metric;
 
+% Add the params themselves
+results.params = params;
+
+% Identify the color scale to be used for plotting the different components
+
+
 end
