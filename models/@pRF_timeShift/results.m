@@ -15,7 +15,7 @@ results.ang = ...
 results.ecc = ...
     sqrt( (rCenter - r).^2 + (c - cCenter).^2);
 
-results.rfsize =   params(:,3);
+results.rfsize =   abs(params(:,3) ./ sqrt(posrect(params(:,5))));
 results.gain =     params(:,4);
 results.expt =     params(:,5);
 results.hrfshift = params(:,6);

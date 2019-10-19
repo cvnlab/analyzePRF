@@ -36,5 +36,9 @@ hrf = fshift(hrf,pp(6));
 % betwen the acquisitions
 fit = conv2run(neuralSignal,hrf,acqGroups);
 
+% Partial the data to remove the effects that are represented in the
+% regression matrix T
+fit = obj.T*fit;
+
 end
 

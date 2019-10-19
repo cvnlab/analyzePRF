@@ -73,7 +73,7 @@ end
 %% Set up model
 
 % Create the model object
-model = feval(p.Results.modelClass,stimulus,res,hrf,...
+model = feval(p.Results.modelClass,data,stimulus,res,hrf,p.Results.tr,...
     'payload',p.Results.modelPayload, ...
     p.Results.modelOpts{:});
 
@@ -115,9 +115,7 @@ for ii=1:length(vxs)
     data2 = cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0);
     data3 = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data2,'UniformOutput',0);
     data4 = catcell(1,data3(1));
-    datastd = std(data4);
-    data5 = data4 / datastd;
-    data6 = model.clean(data5);
+    data5 = model.clean(data4);
     
     % Loop over seed sets
     seedParams = nan(length(seeds),model.nParams);
@@ -130,15 +128,15 @@ for ii=1:length(vxs)
         % Loop over model stages
         for bb = 1:model.nStages
             x0 = lsqcurvefit(...
-                @(x,y) double(model.forward([x x0(model.fixSet{bb})]) / datastd),...
+                @(x,y) model.forward([x x0(model.fixSet{bb})]),...
                 x0(model.floatSet{bb}),...
                 [],...
-                double(data6),[],[],options);
+                data5,[],[],options);
             x0 = [x0 seed(model.fixSet{bb})];
         end
         
         seedParams(ss,:) = x0;
-        seedMetric(ss) = model.metric(data6,x0);
+        seedMetric(ss) = model.metric(data5,x0);
     end
     
     [~,bestSeedIdx]=max(seedMetric);
@@ -169,7 +167,7 @@ results = model.results(params, metric);
 
 % Add the model information
 results.model.class = p.Results.modelClass;
-results.model.inputs =  {model.stimulus, model.res, model.hrf};
+results.model.inputs = {model.stimulus, model.res, model.hrf model.tr};
 results.model.opts =  p.Results.modelOpts;
 results.model.payload =  p.Results.modelPayload;
 

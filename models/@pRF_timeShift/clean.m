@@ -1,5 +1,5 @@
 function signal = clean(obj,signal)
 
-signal = signal - nanmean(signal,1);
+    signal = double(obj.T*signal);
 
 end
