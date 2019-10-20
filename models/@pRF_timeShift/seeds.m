@@ -1,7 +1,35 @@
 function seeds = seeds(obj,data,vxs)
+% Generate parameter seeds for the non-linear search
+%
+% Syntax:
+%   seeds = obj.seeds(data,vxs)
+%
+% Description:
+%   Generates a set of seed parameters for each voxel/vertex in vxs. The
+%   seeds consist of a "small" sigma and a "large" sigma seed, both
+%   positioned at the stimulus center, as well as a third seed that is
+%   determined by grid search. A set of time-series predictions are created
+%   for a plausible set of parameters that vary across location within the
+%   stimulus and sigma size. The prediction that is closest to the
+%   time-series data for a given voxel is found, and the parameters of that
+%   prediction are assigned as the third seed.
+%
+% Inputs:
+%   data                  - A matrix [v t] or cell array of such
+%                           matricies. The fMRI time-series data across t
+%                           TRs, for v vertices / voxels. The data should
+%                           have bassed through the prep stage.
+%   vxs                   - Vector. A list of vertices/voxels to be
+%                           processed.
+%
+% Optional key/value pairs:
+%   none
+%
+% Outputs:
+%   seeds                 - 3x1 cell array. Each cell contains a matrix of
+%                           [v nParams] and is one of the three seed sets.
+%
 
-% Create three sets of seeds, corresponding to the initial params for a
-% small and large sigma, and then the produce of a grid search
 
 % Obj variables
 res = obj.res;
@@ -38,7 +66,7 @@ angs = linspacecircular(0,2*pi,16);
 maxn = floor(log2(resmx));
 ssindices = 2.^(0:maxn);
 % Plausible exponents
-expts = [0.5 0.25 0.125];
+expts = [0.05];
 
 
 %% Generate simulated time series
@@ -81,17 +109,19 @@ if verbose
     fprintf('.\n');
 end
 
+% Create a function handle to avoid broadcasting the model obj
 forward = @(p) obj.forward(p);
 
-parfor p=1:size(allseeds,1)
+% Loop over all seeds and generate the predicted time series
+parfor ii = 1:size(allseeds,1)
 
     % Update progress bar
-    if verbose && mod(p,round(size(allseeds,1)/50))==0
+    if verbose && mod(ii,round(size(allseeds,1)/50))==0
         fprintf('\b.\n');
     end
 
     % Evaluate the forward model
-    predts(:,p) = forward(allseeds(p,:));
+    predts(:,ii) = forward(allseeds(ii,:));
     
 end
 
@@ -101,6 +131,7 @@ if verbose
     fprintf('\n');
 end
 
+% Not sure what this is for
 predts = unitlength(predts,1,[],0);
 
 % Clean the predictt
@@ -108,8 +139,8 @@ predts = obj.clean(predts);
 
 
 %% Match model predictions to data
-
-% Break the computation into chunks of voxels to reduce memory footprint
+% Break the computation into chunks of 100 voxels to reduce memory
+% footprint
 chunks = chunking(1:length(vxs),100);
 bestseedix = {};
 
@@ -136,6 +167,7 @@ vxsSeeds = allseeds(bestseedix,:);  % voxels x parameters
 gridSeeds = nan(totalVxs,nParams);
 gridSeeds(vxs,:)=vxsSeeds;
 
+% Add the gridSeeds to the seed set cell array
 seeds{3} = gridSeeds;
 
 end

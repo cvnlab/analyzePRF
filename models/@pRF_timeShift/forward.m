@@ -1,5 +1,32 @@
 function fit = forward(obj, pp)
 % Forward model for the pRF search
+%
+% Syntax:
+%   fit = obj.forward(pp)
+%
+% Description:
+%   Returns a time-series vector that is the predicted response to a 2D
+%   stimulus, based upon the parameters provided in pp.
+%
+% Inputs:
+%   pp                    - 1xnParams vector.
+%
+% Optional key/value pairs:
+%   none
+%
+% Outputs:
+%   fit                   - 1xtime vector.
+%
+
+
+% Force the parameters within bounds
+if obj.forceBounds
+    [lb, ub] = obj.bounds;
+    idx = pp < lb;
+    pp(idx) = lb(idx);
+    idx = pp > ub;
+    pp(idx) = ub(idx);
+end
 
 % Obj variables
 stimulus = obj.stimulus;
@@ -21,14 +48,7 @@ gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
 % Dot product of the stimulus by the Gaussian window (the neural signal),
 % subjected to a compressive non-linearity by raising to the pp(5)
 % exponent.
-neuralSignal = (stimulus*gaussVector).^ posrect(pp(5));
-
-% Scale the neural signal to have unit amplitude and then apply the gain
-neuralSignal = neuralSignal - min(neuralSignal);
-maxSignal = max(neuralSignal);
-if maxSignal~=0
-    neuralSignal = (neuralSignal / maxSignal) * posrect(pp(4));
-end
+neuralSignal =  posrect(pp(4)) * (stimulus*gaussVector).^ posrect(pp(5));
 
 % Define the acquisition groupings
 acqGroups = stimulus(:,prod(res)+1);

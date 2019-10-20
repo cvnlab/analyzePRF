@@ -5,7 +5,7 @@ function results = analyzePRF(stimulus,data,varargin)
 %  results = analyzePRF(stimulus,data)
 %
 % Description:
-%
+%   Lorem ipsum
 %
 % Inputs:
 %   stimulus              - A matrix [x y t] or cell array of such
@@ -25,6 +25,8 @@ function results = analyzePRF(stimulus,data,varargin)
 %                           passed to the model object. The form of the
 %                           payload is defined by the model object.
 %  'tr'                   - Scalar. The TR of the fMRI data in seconds.
+%  'vxs'                  - Vector. A list of vertices/voxels to be
+%                           processed.
 %  'hrf'                  - Vector. The hrf to be used to model the data.
 %  'maxIter'              - Scalar. The maximum number of iterations
 %                           conducted by lsqcurvefit in model fitting.
@@ -33,6 +35,7 @@ function results = analyzePRF(stimulus,data,varargin)
 % Outputs:
 %   results               - Structure
 %
+
 
 %% input parser
 p = inputParser; p.KeepUnmatched = false;
@@ -54,6 +57,7 @@ p.addParameter('verbose',true,@islogical);
 p.parse(stimulus,data, varargin{:})
 verbose = p.Results.verbose;
 
+
 %% Alert the user
 if verbose
     fprintf(['Fitting the ' p.Results.modelClass ' model.\n\n']);
@@ -61,7 +65,6 @@ end
 
 
 %% Massage inputs and set constants
-
 % Place the stimulus and data in a cell if not already so
 if ~iscell(stimulus)
     stimulus = {stimulus};
@@ -83,7 +86,6 @@ end
 
 
 %% Stimulus prep
-
 % Obtain the dimensions of the stimulus frames
 res = [size(stimulus{1},1) size(stimulus{1},2)];
 
@@ -103,7 +105,6 @@ end
 
 
 %% Set up model
-
 % Create the model object
 model = feval(p.Results.modelClass,data,stimulus,res,hrf,p.Results.tr,...
     'payload',p.Results.modelPayload, ...
@@ -120,7 +121,6 @@ seeds = model.seeds(data,vxs);
 
 
 %% Fit the data
-
 % Options for lsqcurvefit
 options = optimset('Display','off','FunValCheck','on', ...
     'MaxFunEvals',Inf,'MaxIter',p.Results.maxIter, ...
@@ -136,6 +136,9 @@ for bb = 1:model.nStages
 	xSort{bb} = @(x) x(sortOrder);
 end
 
+% Obtain the model bounds
+[lb, ub] = model.bounds;
+
 % Alert the user
 if verbose
     tic
@@ -145,45 +148,70 @@ if verbose
 end
 
 % Loop through the voxels/vertices in vxs
-parfor ii=1:length(vxs)
-    
+for ii=1:length(vxs)
+
     % Update progress bar
     if verbose && mod(ii,round(length(vxs)/50))==0
         fprintf('\b.\n');
     end
-    
+
+    % Squeeze the data from a cell array into a single concatenated time
+    % series
     data2 = cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0);
     data3 = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data2,'UniformOutput',0);
-    data4 = catcell(1,data3(1));
-    data5 = model.clean(data4);
+    datats = catcell(1,data3(1));
     
-    % Loop over seed sets
+    % Apply the model cleaning step, which may include regression of
+    % nuisance components.
+    datats = model.clean(datats);
+    
+    % Pre-allocate the seed search result variables to keep par happy
     seedParams = nan(length(seeds),model.nParams);
     seedMetric = nan(length(seeds),1);
     
+    % Loop over seed sets
     for ss = 1:length(seeds)
         seed = seeds{ss}(vxs(ii),:);
         x0 = seed;
         
         % Loop over model stages
         for bb = 1:model.nStages
+            
+            % Get the params in the fix and float set for this stage
+            fixSet = model.fixSet{bb};
+            floatSet = model.floatSet{bb};
+            
+            % Call the non-linear fit function
             x = lsqcurvefit(...
-                @(x,y) model.forward(xSort{bb}([x x0(model.fixSet{bb})])),...
-                x0(model.floatSet{bb}),...
+                @(x,y) model.forward(xSort{bb}([x x0(fixSet)])),...
+                x0(floatSet),...
                 [],...
-                data5,[],[],options);
+                datats,[],[],options);
+            
+            % Force bounds
+            if model.forceBounds
+                idx = x < lb(floatSet);
+                x(idx) = lb(floatSet(idx));
+                idx = x > ub(floatSet);
+                x(idx) = ub(floatSet(idx));
+            end
+            
+            % Update the x0 guess with the searched params
             x0(model.floatSet{bb}) = x;
         end
-        
+
+        % Store the final params
         seedParams(ss,:) = x0;
-        seedMetric(ss) = model.metric(data5,x0);
+        
+        % Evaluate the model metric
+        seedMetric(ss) = model.metric(datats,x0);
     end
     
+    % Save the best result across seeds
     [~,bestSeedIdx]=max(seedMetric);
-    
     parParams(ii,:) = seedParams(bestSeedIdx,:);
     parMetric(ii) = seedMetric(bestSeedIdx);
-    
+
 end
 
 % report completion of loop
@@ -196,13 +224,12 @@ end
 params = nan(totalVxs,model.nParams);
 params(vxs,:) = parParams;
 clear parParams
-
 metric = nan(totalVxs,1);
 metric(vxs) = parMetric;
 clear parMetric;
 
 
-%% Obtain the results
+%% Prepare the results variable
 results = model.results(params, metric);
 
 % Add the model information

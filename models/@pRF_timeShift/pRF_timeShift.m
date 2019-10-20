@@ -1,10 +1,20 @@
 classdef pRF_timeShift < handle
     
     properties (Constant)
+        dimdata = 1;
+        dimtime = 2;
         nParams = 6;
         nStages = 2;
-        floatSet = {[1 2 4],[1 2 3 4 5 6]};
-        fixSet = {[3 5 6],[]};
+        floatSet = {[1 2 4],[1 2 3 4 6]};
+        fixSet = {[3 5 6],[5]};
+        description = ...
+            ['A pRF mapping approach that assumes a circular symmetric \n' ...
+             'Gaussian receptive field and a fixed, compressive non- \n' ...
+             'linearity. The model adjusts the time-to-peak of the HRF \n',...
+             'and thus requires that the stimulus play in forward and \n',...
+             'time-reversed directions. A two-stage non-linear search \n', ...
+             'is performed, fist across pRF center and gain, and then \n', ...
+             'across the entire parameter set. \n'];
     end
     
     % Private properties
@@ -28,11 +38,13 @@ classdef pRF_timeShift < handle
     % These may be modified after object creation
     properties (SetAccess=public)
         seedScale
-        gain
+        typicalGain
+        forceBounds
         verbose
     end
     
     methods
+
         % Constructor
         function obj = pRF_timeShift(data,stimulus,res,hrf,tr,varargin)
                         
@@ -48,6 +60,7 @@ classdef pRF_timeShift < handle
             
             p.addParameter('payload',{},@iscell);
             p.addParameter('typicalGain',30,@isscalar);
+            p.addParameter('forceBounds',true,@islogical);
             p.addParameter('verbose',true,@islogical);
             
             % parse
@@ -65,21 +78,23 @@ classdef pRF_timeShift < handle
             obj.tr = tr;
             obj.payload = p.Results.payload;
             
-            % Set by default
-            obj.gain = p.Results.typicalGain;
-            obj.seedScale = 'small';
+            % Set defaults
+            obj.typicalGain = p.Results.typicalGain;
+            obj.seedScale = 'medium';
+            obj.forceBounds = p.Results.forceBounds;
             obj.verbose = p.Results.verbose;
 
-            % Create and cache the regression matrix
-            obj.cacheRegressMatrix;
+            % Create and cache the projection matrix
+            obj.cacheProjectionMatrix;
             
-
             % Create and cache the 2D Gaussian in a private property
             [~,obj.xx,obj.yy] = makegaussian2d(max(res),2,2,2,2);
+            
         end
         
         % Methods
         rawData = prep(obj,rawData)
+        cacheProjectionMatrix(obj)
         x0 = initial(obj)
         [lb, ub] = bounds(obj)
         signal = clean(obj, signal)
