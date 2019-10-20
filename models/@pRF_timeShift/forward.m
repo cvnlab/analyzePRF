@@ -20,8 +20,15 @@ gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
 
 % Dot product of the stimulus by the Gaussian window (the neural signal),
 % subjected to a compressive non-linearity by raising to the pp(5)
-% exponent, and scaled in amplitude by pp(4).
-neuralSignal = posrect(pp(4)) * (stimulus*gaussVector) .^ posrect(pp(5));
+% exponent.
+neuralSignal = (stimulus*gaussVector).^ posrect(pp(5));
+
+% Scale the neural signal to have unit amplitude and then apply the gain
+neuralSignal = neuralSignal - min(neuralSignal);
+maxSignal = max(neuralSignal);
+if maxSignal~=0
+    neuralSignal = (neuralSignal / maxSignal) * posrect(pp(4));
+end
 
 % Define the acquisition groupings
 acqGroups = stimulus(:,prod(res)+1);
@@ -36,6 +43,7 @@ fit = conv2run(neuralSignal,hrf,acqGroups);
 % Partial the data to remove the effects that are represented in the
 % regression matrix T
 fit = obj.T*fit;
+
 
 end
 

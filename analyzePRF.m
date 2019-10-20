@@ -1,5 +1,38 @@
 function results = analyzePRF(stimulus,data,varargin)
-
+% Non-linear model fitting of fMRI time-series data
+%
+% Syntax:
+%  results = analyzePRF(stimulus,data)
+%
+% Description:
+%
+%
+% Inputs:
+%   stimulus              - A matrix [x y t] or cell array of such
+%                           matrices. 
+%   data                  - A matrix [v t] or cell array of such
+%                           matricies. The fMRI time-series data across t
+%                           TRs, for v vertices / voxels.
+%
+% Optional key/value pairs:
+%  'modelClass'           - Char vector. The name of one of the available
+%                           model objects. Choices include:
+%                             {'pRF','pRF_timeShift'}
+%  'modelOpts'            - A cell array of key-value pairs that are passed
+%                           to the model object at that time of object
+%                           creation.
+%  'modelPayload'         - A cell array of additional inputs that is
+%                           passed to the model object. The form of the
+%                           payload is defined by the model object.
+%  'tr'                   - Scalar. The TR of the fMRI data in seconds.
+%  'hrf'                  - Vector. The hrf to be used to model the data.
+%  'maxIter'              - Scalar. The maximum number of iterations
+%                           conducted by lsqcurvefit in model fitting.
+%  'verbose'              - Logical.
+%
+% Outputs:
+%   results               - Structure
+%
 
 %% input parser
 p = inputParser; p.KeepUnmatched = false;
@@ -19,7 +52,6 @@ p.addParameter('verbose',true,@islogical);
 
 % parse
 p.parse(stimulus,data, varargin{:})
-
 verbose = p.Results.verbose;
 
 %% Alert the user
@@ -96,6 +128,14 @@ options = optimset('Display','off','FunValCheck','on', ...
     'OutputFcn',@(a,b,c) outputfcnsanitycheck(a,b,c,1e-6,10));
 options.Algorithm = 'levenberg-marquardt';
 
+% Pre-compute functions that will asemble the parameters in the different
+% model stages
+for bb = 1:model.nStages
+	order = [model.floatSet{bb} model.fixSet{bb}];
+	[~,sortOrder]=sort(order);
+	xSort{bb} = @(x) x(sortOrder);
+end
+
 % Alert the user
 if verbose
     tic
@@ -127,12 +167,12 @@ parfor ii=1:length(vxs)
         
         % Loop over model stages
         for bb = 1:model.nStages
-            x0 = lsqcurvefit(...
-                @(x,y) model.forward([x x0(model.fixSet{bb})]),...
+            x = lsqcurvefit(...
+                @(x,y) model.forward(xSort{bb}([x x0(model.fixSet{bb})])),...
                 x0(model.floatSet{bb}),...
                 [],...
                 data5,[],[],options);
-            x0 = [x0 seed(model.fixSet{bb})];
+            x0(model.floatSet{bb}) = x;
         end
         
         seedParams(ss,:) = x0;
