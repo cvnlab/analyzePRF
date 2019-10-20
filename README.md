@@ -1,76 +1,34 @@
-# analyzePRF
+# forwardModel
 
-analyzePRF is a MATLAB toolbox for fitting population receptive field (pRF) models
-to fMRI data.  It is developed by Kendrick Kay (kendrick@post.harvard.edu).
+forwardModel is a MATLAB toolbox for non-linear fitting of models to fMRI
+data. It started life as analyzePRF (http://kendrickkay.net/analyzePRF/)
+by Kendrick Kay. It has undergone refactoring to operate as an object-
+oriented system for fitting models. Much of the clever structure that 
+Kendrick had created was stripped out to create a simpler, more general-
+purpose code set.
 
-The toolbox has several dependencies:
-- MATLAB Optimization Toolbox
-- GLMdenoise (necessary only if you use the GLMdenoise feature; to download
-              GLMdenoise, see http://kendrickkay.net/GLMdenoise/)
+The legacy of Kendrick's code is most clearly seen in the model for pRF
+mapping in retinotopic data. Specifically, the approach to creating
+"super grid seeds", and the inclusion of a compressive non-linearity
+in the modeled neural response, which is taken from:
 
-To use the toolbox, add it to your MATLAB path:
-  addpath(genpath('analyzePRF'));
-
-To try the toolbox on an example dataset, change to the analyzePRF directory 
-and then type:
-  example1;
-This script will download the example dataset (if it has not already been
-downloaded) and will run the toolbox on the dataset.
-
-For additional information, please visit:
-  http://kendrickkay.net/analyzePRF/
-
-Terms of use: This content is licensed under a Creative Commons Attribution 3.0 
-Unported License (http://creativecommons.org/licenses/by/3.0/us/). You are free 
-to share and adapt the content as you please, under the condition that you cite 
-the appropriate manuscript (see below).
-
-If you use analyzePRF in your research, please cite the following paper:
   Kay KN, Winawer J, Mezer A and Wandell BA (2013) 
     Compressive spatial summation in human visual cortex.
     J. Neurophys. doi: 10.1152/jn.00105.2013
 
-History of major code changes:
-- 2014/06/17 - Version 1.1.
+The implementation of pRF mapping implemented here differs from Kendrick's
+original codes in a few ways:
+  - The HRF is modeled as a double-gamma, which can be modified under the
+    control of parameters
+  - Multiple, cascading stages of non-linear fitting are supported with the
+    ability to define sets of parameters that are fixed or float in a given
+    search, with the results of a search passing to initialize the next
+    stage.
+  - For retinotopic mapping designs that play the same stimulus forward and
+    reverse in time, the model will estimate a shift of the HRF time-to-peak
+    to best fit the data.
+  - Upper and lower bounds are enforced within the context of the levenberg-
+    marquardt algorithm.
 
-## CONTENTS
-
-Contents:
-- analyzePRF.m - Top-level function that you want to call
-- analyzePRFcomputeGLMdenoiseregressors.m - Helper function
-- analyzePRFcomputesupergridseeds.m - Helper function
-- example*.m - Example scripts
-- exampledataset.mat - Example dataset
-- README - The file you are reading
-- setup.m - A simple script that downloads the example dataset
-            and adds analyzePRF to the MATLAB path
-- utilities - A directory containing various utility functions
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-Copyright (c) 2014, Kendrick Kay
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-Redistributions of source code must retain the above copyright notice, this
-list of conditions and the following disclaimer.
-
-Redistributions in binary form must reproduce the above copyright notice, this
-list of conditions and the following disclaimer in the documentation and/or
-other materials provided with the distribution.
-
-The names of its contributors may not be used to endorse or promote products 
-derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+More generally, the code supports the creation of object-oriented model
+classes that can be evaluated within a common framework.
