@@ -1,12 +1,27 @@
 classdef pRF_timeShift < handle
     
     properties (Constant)
+        
+        % The identity of the dimensions of the data variable
         dimdata = 1;
         dimtime = 2;
+        
+        % THe number of parameters in the model
         nParams = 6;
+        
+        % The model is executed as a two stage search. The float and fix
+        % sets describe which parameters are adjusted during each stage.
+        % During the first stage, the x and y position and gain parameters
+        % are adjusted to best fit the data, while the remaining parameters
+        % are fixed at their initial (x0) values. The results of this first
+        % stage are fed to the second stage, during which all parameters
+        % are adjusted except for the compressive non-linearity, which is
+        % set to a fixed value in this implementation.
         nStages = 2;
         floatSet = {[1 2 4],[1 2 3 4 6]};
         fixSet = {[3 5 6],[5]};
+        
+        % A description of the model
         description = ...
             ['A pRF mapping approach that assumes a circular symmetric \n' ...
              'Gaussian receptive field and a fixed, compressive non- \n' ...
@@ -18,10 +33,15 @@ classdef pRF_timeShift < handle
     end
     
     % Private properties
-    properties (GetAccess=private)        
+    properties (GetAccess=private)
+        % Pre-computed properties of the 2D Gaussian used in obj.forward
         xx
         yy
+        
+        % A time x 1 vector that defines the HRF convolution kernel
         hrf
+        
+        % The projection matrix used to regress our nuisance effects
         T
     end
     
@@ -38,6 +58,7 @@ classdef pRF_timeShift < handle
     % These may be modified after object creation
     properties (SetAccess=public)
         hrfParams
+        polyDeg
         seedScale
         typicalGain
         forceBounds
@@ -59,6 +80,7 @@ classdef pRF_timeShift < handle
             
             p.addParameter('payload',{},@iscell);
             p.addParameter('hrfParams',[6 12 10 20],@isvector);
+            p.addParameter('polyDeg',[],@isscalar);
             p.addParameter('typicalGain',30,@isscalar);
             p.addParameter('seedScale','medium',@ischar);
             p.addParameter('forceBounds',true,@islogical);
@@ -89,6 +111,7 @@ classdef pRF_timeShift < handle
             obj.tr = tr;
             obj.payload = p.Results.payload;
             obj.hrfParams = p.Results.hrfParams;
+            obj.polyDeg = p.Results.polyDeg;
             obj.typicalGain = p.Results.typicalGain;
             obj.seedScale = 'medium';
             obj.forceBounds = p.Results.forceBounds;
@@ -98,7 +121,7 @@ classdef pRF_timeShift < handle
             obj.genhrf
             
             % Create and cache the projection matrix
-            obj.cacheProjectionMatrix;
+            obj.genprojection;
             
             % Create and cache the 2D Gaussian in a private property
             [~,obj.xx,obj.yy] = makegaussian2d(max(res),2,2,2,2);
@@ -110,10 +133,15 @@ classdef pRF_timeShift < handle
             obj.hrfParams = value;
             obj.genhrf;
         end
+
+        function set.polyDeg(obj, value)
+            obj.polyDeg = value;
+            obj.genprojection;
+        end
         
         % Methods
         rawData = prep(obj,rawData)
-        cacheProjectionMatrix(obj)
+        genprojection(obj)
         x0 = initial(obj)
         [lb, ub] = bounds(obj)
         signal = clean(obj, signal)

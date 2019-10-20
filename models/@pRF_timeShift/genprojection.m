@@ -1,8 +1,8 @@
-function cacheProjectionMatrix(obj)
+function genprojection(obj)
 % Generates and stores a projection matrix that removes nuisance effects
 %
 % Syntax:
-%   obj.cacheProjectionMatrix
+%   obj.genprojection
 %
 % Description:
 %   Generates a set of polynomial regressors and a corresponding
@@ -25,17 +25,21 @@ function cacheProjectionMatrix(obj)
 tr = obj.tr;
 nAcqs = obj.nAcqs;
 nTRsPerAcq = obj.nTRsPerAcq;
+polyDeg = obj.polyDeg;
 
 % Decide how many low frequencies to filter from each acquisition
-maxpolydeg = round(nTRsPerAcq.*tr/60/2);
+if isempty(polyDeg)
+    polyDeg = round(nTRsPerAcq.*tr/60/2);
+    obj.polyDeg = polyDeg;
+end
 
 % Construct polynomial regressors matrix
 polyregressors = {};
 for pp=1:nAcqs
-    if isnan(maxpolydeg(pp))
+    if isnan(polyDeg(pp))
         polyregressors{pp} = zeros(nTRsPerAcq(pp),0);
     else
-        polyregressors{pp} = constructpolynomialmatrix(nTRsPerAcq(pp),0:maxpolydeg(pp));
+        polyregressors{pp} = constructpolynomialmatrix(nTRsPerAcq(pp),0:polyDeg(pp));
     end
 end
 
