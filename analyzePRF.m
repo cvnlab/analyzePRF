@@ -85,28 +85,9 @@ else
 end
 
 
-%% Stimulus prep
-% Obtain the dimensions of the stimulus frames
-res = [size(stimulus{1},1) size(stimulus{1},2)];
-
-% Vectorize the stimuli. Also, add a dummy column to indicate run breaks
-for ii=1:length(stimulus)
-    stimulus{ii} = squish(stimulus{ii},2)';
-    stimulus{ii} = [stimulus{ii} ii*ones(size(stimulus{ii},1),1)];
-end
-
-
-%% HRF prep
-if isempty(p.Results.hrf)
-    hrf = getcanonicalhrf(p.Results.tr,p.Results.tr)';
-else
-    hrf = p.Results.hrf;
-end
-
-
 %% Set up model
 % Create the model object
-model = feval(p.Results.modelClass,data,stimulus,res,hrf,p.Results.tr,...
+model = feval(p.Results.modelClass,data,stimulus,p.Results.tr,...
     'payload',p.Results.modelPayload, ...
     p.Results.modelOpts{:});
 
@@ -234,7 +215,7 @@ results = model.results(params, metric);
 
 % Add the model information
 results.model.class = p.Results.modelClass;
-results.model.inputs = {stimulus, res, hrf p.Results.tr};
+results.model.inputs = {stimulus, p.Results.tr};
 results.model.opts =  p.Results.modelOpts;
 results.model.payload =  p.Results.modelPayload;
 

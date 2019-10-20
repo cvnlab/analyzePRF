@@ -21,6 +21,7 @@ classdef pRF_timeShift < handle
     properties (GetAccess=private)        
         xx
         yy
+        hrf
         T
     end
     
@@ -28,7 +29,6 @@ classdef pRF_timeShift < handle
     properties (SetAccess=private)
         stimulus
         res
-        hrf
         tr
         payload
         nAcqs
@@ -37,6 +37,7 @@ classdef pRF_timeShift < handle
     
     % These may be modified after object creation
     properties (SetAccess=public)
+        hrfParams
         seedScale
         typicalGain
         forceBounds
@@ -46,7 +47,7 @@ classdef pRF_timeShift < handle
     methods
 
         % Constructor
-        function obj = pRF_timeShift(data,stimulus,res,hrf,tr,varargin)
+        function obj = pRF_timeShift(data,stimulus,tr,varargin)
                         
             % instantiate input parser
             p = inputParser; p.KeepUnmatched = false;
@@ -54,42 +55,60 @@ classdef pRF_timeShift < handle
             % Required
             p.addRequired('data',@iscell);
             p.addRequired('stimulus',@iscell);
-            p.addRequired('res',@isvector);
-            p.addRequired('hrf',@isvector);
             p.addRequired('tr',@isscalar);
             
             p.addParameter('payload',{},@iscell);
+            p.addParameter('hrfParams',[6 12 10 20],@isvector);
             p.addParameter('typicalGain',30,@isscalar);
+            p.addParameter('seedScale','medium',@ischar);
             p.addParameter('forceBounds',true,@islogical);
             p.addParameter('verbose',true,@islogical);
-            
+
             % parse
-            p.parse(data,stimulus,res,hrf,tr, varargin{:})
+            p.parse(data, stimulus, tr, varargin{:})
             
             % Derive properties from the data variable and then clear
             obj.nAcqs = length(data);
             obj.nTRsPerAcq = cellfun(@(x) size(x,2),data);
             clear data
             
-            % Distribute passed params to obj properties
-            obj.stimulus = catcell(1,stimulus);
+            % Obtain the dimensions of the stimulus frames and store
+            res = [size(stimulus{1},1) size(stimulus{1},2)];
             obj.res = res;
-            obj.hrf = hrf;
+            
+            % Vectorize the stimuli. Add a dummy column to indicate run
+            % breaks. Concatenate the cells and store
+            for ii=1:length(stimulus)
+                stimulus{ii} = squish(stimulus{ii},2)';
+                stimulus{ii} = [stimulus{ii} ii*ones(size(stimulus{ii},1),1)];
+            end
+            obj.stimulus = catcell(1,stimulus);
+            clear stimulus
+            
+            % Distribute other params to obj properties
             obj.tr = tr;
             obj.payload = p.Results.payload;
-            
-            % Set defaults
+            obj.hrfParams = p.Results.hrfParams;
             obj.typicalGain = p.Results.typicalGain;
             obj.seedScale = 'medium';
             obj.forceBounds = p.Results.forceBounds;
             obj.verbose = p.Results.verbose;
 
+            % Create and cache the hrf
+            obj.genhrf
+            
             % Create and cache the projection matrix
             obj.cacheProjectionMatrix;
             
             % Create and cache the 2D Gaussian in a private property
             [~,obj.xx,obj.yy] = makegaussian2d(max(res),2,2,2,2);
             
+        end
+        
+        % Set methods
+        function set.hrfParams(obj, value)
+            obj.hrfParams = value;
+            obj.genhrf;
         end
         
         % Methods
