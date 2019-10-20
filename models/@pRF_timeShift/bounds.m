@@ -44,7 +44,7 @@ lb(6) = -3/tr;          % HRF temporal shift (units of TRs)
 ub(1) = 1.25*res(1);     % xPosition
 ub(2) = 1.25*res(2);     % yPosition
 ub(3) = max(res)/2;     % sigma
-ub(4) = 150;            % gain (amplitude) of response
+ub(4) = Inf;            % gain (amplitude) of response
 ub(5) = 0.05;           % compressive exponent
 ub(6) = 3/tr;           % HRF temporal shift (units of TRs)
 

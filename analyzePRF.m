@@ -129,7 +129,7 @@ if verbose
 end
 
 % Loop through the voxels/vertices in vxs
-for ii=1:length(vxs)
+parfor ii=1:length(vxs)
 
     % Update progress bar
     if verbose && mod(ii,round(length(vxs)/50))==0
