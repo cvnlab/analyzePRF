@@ -3,8 +3,8 @@ classdef pRF_timeShift < handle
     properties (Constant)
         nParams = 6;
         nStages = 2;
-        floatSet = {[1 2 3 4],[1 2 3 4 5 6]};
-        fixSet = {[5 6],[]};
+        floatSet = {[1 2 4],[1 2 3 4 5 6]};
+        fixSet = {[3 5 6],[]};
     end
     
     % Private properties
@@ -59,7 +59,7 @@ classdef pRF_timeShift < handle
             clear data
             
             % Distribute passed params to obj properties
-            obj.stimulus = stimulus;
+            obj.stimulus = catcell(1,stimulus);
             obj.res = res;
             obj.hrf = hrf;
             obj.tr = tr;
@@ -67,7 +67,7 @@ classdef pRF_timeShift < handle
             
             % Set by default
             obj.gain = p.Results.typicalGain;
-            obj.seedScale = 'large';
+            obj.seedScale = 'small';
             obj.verbose = p.Results.verbose;
 
             % Create and cache the regression matrix

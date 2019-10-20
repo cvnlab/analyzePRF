@@ -18,9 +18,6 @@ gaussNorm = (2*pi*abs(pp(3))^2);
 % Gaussian window normalized, cropped to <res>, and vectorized
 gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
 
-% Combine the stimulus cells into a single vector
-stimulus = catcell(1,stimulus);
-
 % Dot product of the stimulus by the Gaussian window (the neural signal),
 % subjected to a compressive non-linearity by raising to the pp(5)
 % exponent, and scaled in amplitude by pp(4).

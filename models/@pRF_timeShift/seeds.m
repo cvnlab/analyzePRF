@@ -1,12 +1,33 @@
 function seeds = seeds(obj,data,vxs)
 
+% Create three sets of seeds, corresponding to the initial params for a
+% small and large sigma, and then the produce of a grid search
 
-%% Obj variables
-stimulus = obj.stimulus;
+% Obj variables
 res = obj.res;
 resmx=max(res);
 nParams=obj.nParams;
 verbose=obj.verbose;
+
+% Derived vars
+totalVxs = size(data{1},1);
+
+% Store the seedScale
+seedScale = obj.seedScale;
+
+% Small scale seeds
+obj.seedScale = 'small';
+x0 = initial(obj);
+seeds{1} = repmat(x0,totalVxs,1);
+
+% Large scale seeds
+obj.seedScale = 'large';
+x0 = initial(obj);
+seeds{2} = repmat(x0,totalVxs,1);
+
+% restore the seedScale
+obj.seedScale = seedScale;
+
 
 %% Internal constants
 % Log-spaced eccentricities
@@ -52,12 +73,6 @@ end
 
 
 %% Time series from the forward model
-% generate predicted time-series [note that some time-series are all 0]
-predts = zeros(sum(cellfun(@(x) size(x,1),stimulus)),size(allseeds,1),'single');  % time x seeds
-
-forward = @(p) obj.forward(p);
-
-
 % Alert the user
 if verbose
     tic
@@ -65,6 +80,8 @@ if verbose
     fprintf('| 0                      50                   100%% |\n');
     fprintf('.\n');
 end
+
+forward = @(p) obj.forward(p);
 
 parfor p=1:size(allseeds,1)
 
@@ -86,7 +103,7 @@ end
 
 predts = unitlength(predts,1,[],0);
 
-% Clean the time series
+% Clean the predictt
 predts = obj.clean(predts);
 
 
@@ -105,7 +122,7 @@ parfor p=1:length(chunks)
     % time x voxels
     datats = unitlength(catcell(2,cellfun(@(x) subscript(squish(x,1),{vxs(chunks{p}) ':'}),data,'UniformOutput',0))',1,[],0);
     
-    % Implement the time series clean stage
+    % Clean the time series
     datats = cleanFun(datats);
     
     % voxels x 1 with index of the best seed (max corr)
@@ -116,11 +133,10 @@ bestseedix = catcell(1,bestseedix);  % voxels x 1
 
 % prepare output
 vxsSeeds = allseeds(bestseedix,:);  % voxels x parameters
-totalVxs = size(data{1},1);
-seeds = nan(totalVxs,nParams);
-seeds(vxs,:)=vxsSeeds;
+gridSeeds = nan(totalVxs,nParams);
+gridSeeds(vxs,:)=vxsSeeds;
 
-seeds = {seeds};
+seeds{3} = gridSeeds;
 
 end
 

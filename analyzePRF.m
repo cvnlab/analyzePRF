@@ -105,7 +105,7 @@ if verbose
 end
 
 % Loop through the voxels/vertices in vxs
-for ii=1:length(vxs)
+parfor ii=1:length(vxs)
     
     % Update progress bar
     if verbose && mod(ii,round(length(vxs)/50))==0
@@ -119,7 +119,7 @@ for ii=1:length(vxs)
     
     % Loop over seed sets
     seedParams = nan(length(seeds),model.nParams);
-    seedMetric = nan(length(seeds));
+    seedMetric = nan(length(seeds),1);
     
     for ss = 1:length(seeds)
         seed = seeds{ss}(vxs(ii),:);
@@ -167,7 +167,7 @@ results = model.results(params, metric);
 
 % Add the model information
 results.model.class = p.Results.modelClass;
-results.model.inputs = {model.stimulus, model.res, model.hrf model.tr};
+results.model.inputs = {stimulus, res, hrf p.Results.tr};
 results.model.opts =  p.Results.modelOpts;
 results.model.payload =  p.Results.modelPayload;
 
