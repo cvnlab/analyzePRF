@@ -47,21 +47,47 @@ classdef pRF_timeShift < handle
     
     % Fixed after object creation
     properties (SetAccess=private)
+
+        % The stimulus vector, concatenated across acquisitions and squished across x y. Thus it
+        % will have the dimensions [totalTRs x*y]
         stimulus
+        
+        % A vector of the length totalTRs x 1 that has an index value to
+        % indicate which acquisition (1, 2, 3 ...) this TR is from.
+        acqGroups
+        
+        % 1x2 vector with the original [x y] dimensions
         res
+        
+        % TR of the data in seconds
         tr
+        
+        % A cell array that contains things that the model might want
         payload
+        
+        % The number of acquisitions
         nAcqs
+        
+        % A vector with the number of TRs in each acquisition.
         nTRsPerAcq
     end
     
     % These may be modified after object creation
     properties (SetAccess=public)
         hrfParams
+        
+        % The number of low frequencies to be removed from each acquisition
         polyDeg
-        seedScale
+        
+        % Typical amplitude of the BOLD fMRI response in the data
         typicalGain
+        
+        seedScale
+
+        % Force the model to be within bounds on each iteration
         forceBounds
+        
+        % Verbosity
         verbose
         pixelsPerDegree
         screenMagnification

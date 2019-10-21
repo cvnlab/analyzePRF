@@ -1,4 +1,4 @@
-function results = results(~, params, metric)
+function results = results(obj, params, metric)
 % Packages the model outputs into a results structure
 %
 % Syntax:
@@ -25,10 +25,10 @@ function results = results(~, params, metric)
 
 
 % Map params and metric to a results structure
-results.gamma1 =        posrect(pp(1));
-results.gamma2 =        posrect(pp(2));
-results.gammaScale =    posrect(pp(3));
-results.gain =          posrect(pp(4));
+results.gamma1 =        posrect(params(1));
+results.gamma2 =        posrect(params(1)) .* posrect(params(2));
+results.gammaScale =    posrect(params(3));
+results.gain =          posrect(params(4));
 results.R2 =            metric;
 
 % Add the params themselves

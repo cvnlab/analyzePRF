@@ -27,14 +27,14 @@ ub = nan(1,nParams);
 
 % The lower bounds
 lb(1) = 2;              % gamma1
-lb(2) = 3;              % gamma2
-lb(3) = 1;              % gammaScale
-lb(4) = -Inf;           % gain (amplitude) of response
+lb(2) = 1.1;            % gamma2 = gamma1 * x(2)
+lb(3) = 1;              % ratio of gamma 1 / gamma 2 amplitudes
+lb(4) = 0;              % gain (amplitude) of response
 
 % The upper bounds
-ub(1) = 8;              % gamma1
-ub(2) = 10;             % gamma2
-ub(3) = 20;             % gammaScale
+ub(1) = 10;              % gamma1
+ub(2) = 3;              % gamma2 = gamma1 * x(2)
+ub(3) = 200;             % ratio of gamma 1 / gamma 2 amplitudes
 ub(4) = Inf;            % gain (amplitude) of response
 
 end

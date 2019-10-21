@@ -1,4 +1,4 @@
-function fit = forward(obj, pp)
+function [fit, hrf] = forward(obj, pp)
 % Forward model for the derive hrf search
 %
 % Syntax:
@@ -10,13 +10,14 @@ function fit = forward(obj, pp)
 %   that is defined by the params.
 %
 % Inputs:
-%   pp                    - 1xnParams vector.
+%   pp                    - [1 nParams] vector.
 %
 % Optional key/value pairs:
 %   none
 %
 % Outputs:
-%   fit                   - 1xtime vector.
+%   fit                   - [nTRs 1] vector.
+%   hrf                   - [duration 1] vector.
 %
 
 
@@ -31,26 +32,25 @@ end
 
 % Unpack the params
 gamma1 = posrect(pp(1));
-gamma2 = posrect(pp(2));
+gammaTimeRatio = posrect(pp(2));
+gamma2 = gamma1 * gammaTimeRatio;
 gammaScale = posrect(pp(3));
 gain = posrect(pp(4));
 
 % Obj variables
 stimulus = obj.stimulus;
+acqGroups = obj.acqGroups;
 tr = obj.tr;
 duration = obj.duration;
 
 % THe neural signal is the stimulus, scaled by the gain.
 neuralSignal =  posrect(gain) * stimulus;
 
-% Define the acquisition groupings
-acqGroups = stimulus(:,prod(res)+1);
-
-% Define the timebase
+% Define the timebase in TRs
 timebase = 0:tr:ceil(duration/tr);
 
 % Create the double gamma function
-hrf = gampdf(timebase,gamma1, 1) - ...
+hrf = gampdf(timebase, gamma1, 1) - ...
     gampdf(timebase, gamma2, 1)/gammaScale;
 
 % Set to zero at onset

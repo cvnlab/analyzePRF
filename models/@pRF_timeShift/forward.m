@@ -30,6 +30,7 @@ end
 
 % Obj variables
 stimulus = obj.stimulus;
+acqGroups = obj.acqGroups;
 res = obj.res;
 hrf = obj.hrf;
 tr = obj.tr;
@@ -50,9 +51,6 @@ gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
 % subjected to a compressive non-linearity by raising to the pp(5)
 % exponent.
 neuralSignal =  posrect(pp(4)) * (stimulus*gaussVector).^ posrect(pp(5));
-
-% Define the acquisition groupings
-acqGroups = stimulus(:,prod(res)+1);
 
 % Shift the hrf by the number of seconds specified in pp(6)
 hrf = fshift(hrf,pp(6)/tr);

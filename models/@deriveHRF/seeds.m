@@ -1,4 +1,4 @@
-function seeds = seeds(~,data,~)
+function seeds = seeds(obj,data,vxs)
 % Generate parameter seeds for the non-linear search
 %
 % Syntax:
@@ -27,7 +27,7 @@ function seeds = seeds(~,data,~)
 totalVxs = size(data{1},1);
 
 % Generate seeds, which is just the initial values
-x0 = initial(obj);
+x0 = obj.initial;
 seeds{1} = repmat(x0,totalVxs,1);
 
 end

@@ -26,9 +26,9 @@ typicalGain = obj.typicalGain;
 x0 = zeros(1,nParams);
 
 % Assemble X0
-x0(1) = 4;               % xPosition
-x0(2) = 8;               % yPosition
-x0(3) = 10;              % sigma
+x0(1) = 4;               % gamma1
+x0(2) = 2;               % gamma2 = gamma1 * x(2) 
+x0(3) = 10;              % ratio of gamma 1 / gamma 2 amplitudes
 x0(4) = typicalGain;     % typical gain (amplitude)
 
 end
