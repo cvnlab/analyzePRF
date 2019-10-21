@@ -116,8 +116,6 @@ classdef pRF_timeShift < handle
             p.addParameter('pixelsPerDegree',5.18,@isscalar);
             p.addParameter('screenMagnification',1,@isscalar);
         
-        
-
             % parse
             p.parse(data, stimulus, tr, varargin{:})
             
@@ -130,14 +128,15 @@ classdef pRF_timeShift < handle
             res = [size(stimulus{1},1) size(stimulus{1},2)];
             obj.res = res;
             
-            % Vectorize the stimuli. Add a dummy column to indicate run
-            % breaks. Concatenate the cells and store
+            % Vectorize the stimuli. Create a vector to represent run
+            % breaks. Concatenate and store in the object.
             for ii=1:length(stimulus)
                 stimulus{ii} = squish(stimulus{ii},2)';
-                stimulus{ii} = [stimulus{ii} ii*ones(size(stimulus{ii},1),1)];
+                acqGroups{ii} = ii*ones(size(stimulus{ii},1),1);
             end
             obj.stimulus = catcell(1,stimulus);
-            clear stimulus
+            obj.acqGroups = catcell(1,acqGroups);
+            clear stimulus acqGroups
             
             % Distribute other params to obj properties
             obj.tr = tr;
