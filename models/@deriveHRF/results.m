@@ -1,4 +1,4 @@
-function results = results(obj, params, metric)
+function results = results(~, params, metric)
 % Packages the model outputs into a results structure
 %
 % Syntax:
@@ -24,30 +24,23 @@ function results = results(obj, params, metric)
 %
 
 
-% Obj variables
-res = obj.res;
-
-% Stimulus center
-rCenter = (1+res(1))/2;
-cCenter = (1+res(2))/2;
-
 % Map params and metric to a results structure
-r = params(:,1);
-c = params(:,2);
-results.ang = ...
-    mod( atan2( rCenter - r, c - cCenter ), 2*pi ) / pi*180;
-results.ecc = ...
-    sqrt( (rCenter - r).^2 + (c - cCenter).^2);
-results.rfsize =   abs(params(:,3) ./ sqrt(posrect(params(:,5))));
-results.gain =     posrect(params(:,4));
-results.expt =     posrect(params(:,5));
-results.hrfshift = params(:,6);
-results.R2 =       metric;
+results.gamma1 =        posrect(pp(1));
+results.gamma2 =        posrect(pp(2));
+results.gammaScale =    posrect(pp(3));
+results.gain =          posrect(pp(4));
+results.R2 =            metric;
 
 % Add the params themselves
-results.params =   params;
+results.params =        params;
 
 % Identify the color scale to be used for plotting the different components
+% Identify the color scale to be used for plotting the different components
+[lb, ub] = obj.bounds;
+results.meta.mapList = {'gamma1','gamma2','gammaScale','gain','R2'};
+results.meta.mapScale = {'linearJet','linearJet','linearJet','gain','R2'};
+results.meta.mapLabel = {'gamma1 [secs]','gamma2 [secs]','Relative peak to undershoot','response gain [T2* units]','R2'};
+results.meta.mapBounds = {[lb(1) ub(1)],[lb(2) ub(2)],[lb(3) ub(3)],[0 1000],[0 1]};
 
 
 end

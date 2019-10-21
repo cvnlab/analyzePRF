@@ -32,6 +32,7 @@ end
 stimulus = obj.stimulus;
 res = obj.res;
 hrf = obj.hrf;
+tr = obj.tr;
 xx = obj.xx;
 yy = obj.yy;
 resmx=max(res);
@@ -53,8 +54,8 @@ neuralSignal =  posrect(pp(4)) * (stimulus*gaussVector).^ posrect(pp(5));
 % Define the acquisition groupings
 acqGroups = stimulus(:,prod(res)+1);
 
-% Shift the hrf by the number of TRs specified in pp(6)
-hrf = fshift(hrf,pp(6));
+% Shift the hrf by the number of seconds specified in pp(6)
+hrf = fshift(hrf,pp(6)/tr);
 
 % Convolve the neural signal by the passed hrf, respecting the boundaries
 % betwen the acquisitions

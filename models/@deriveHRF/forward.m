@@ -1,13 +1,13 @@
 function fit = forward(obj, pp)
-% Forward model for the pRF search
+% Forward model for the derive hrf search
 %
 % Syntax:
 %   fit = obj.forward(pp)
 %
 % Description:
-%   Returns a time-series vector that is a square-wave vector of
-%   neural activity as defined by the stimulus, subject to 
-%   convolution by an HRF that is defined by the params.
+%   Returns a time-series vector that is a square-wave vector of neural
+%   activity as defined by the stimulus, subject to convolution by an HRF
+%   that is defined by the params.
 %
 % Inputs:
 %   pp                    - 1xnParams vector.
@@ -29,33 +29,36 @@ if obj.forceBounds
     pp(idx) = ub(idx);
 end
 
+% Unpack the params
+gamma1 = posrect(pp(1));
+gamma2 = posrect(pp(2));
+gammaScale = posrect(pp(3));
+gain = posrect(pp(4));
+
 % Obj variables
 stimulus = obj.stimulus;
-res = obj.res;
-hrf = obj.hrf;
-xx = obj.xx;
-yy = obj.yy;
-resmx=max(res);
+tr = obj.tr;
+duration = obj.duration;
 
-% Gaussian at [x, y] pp(1), pp(2), of sigma size pp(3)
-gaussWindow = makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0);
-
-% Normalization scalar
-gaussNorm = (2*pi*abs(pp(3))^2);
-
-% Gaussian window normalized, cropped to <res>, and vectorized
-gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
-
-% Dot product of the stimulus by the Gaussian window (the neural signal),
-% subjected to a compressive non-linearity by raising to the pp(5)
-% exponent.
-neuralSignal =  posrect(pp(4)) * (stimulus*gaussVector).^ posrect(pp(5));
+% THe neural signal is the stimulus, scaled by the gain.
+neuralSignal =  posrect(gain) * stimulus;
 
 % Define the acquisition groupings
 acqGroups = stimulus(:,prod(res)+1);
 
-% Shift the hrf by the number of TRs specified in pp(6)
-hrf = fshift(hrf,pp(6));
+% Define the timebase
+timebase = 0:tr:ceil(duration/tr);
+
+% Create the double gamma function
+hrf = gampdf(timebase,gamma1, 1) - ...
+    gampdf(timebase, gamma2, 1)/gammaScale;
+
+% Set to zero at onset
+hrf = hrf - hrf(1);
+
+% Normalize the kernel to have unit area. Transpose the vector so that it
+% is time x 1
+hrf = (hrf/sum(abs(hrf)))';
 
 % Convolve the neural signal by the passed hrf, respecting the boundaries
 % betwen the acquisitions

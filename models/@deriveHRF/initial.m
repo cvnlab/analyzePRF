@@ -20,7 +20,7 @@ function x0 = initial(obj)
 
 % Obj variables
 nParams = obj.nParams;
-typicalGain = typicalGain;
+typicalGain = obj.typicalGain;
 
 % Assign the x0 variable
 x0 = zeros(1,nParams);
