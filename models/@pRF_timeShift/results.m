@@ -49,11 +49,12 @@ results.params =   params;
 
 % Identify the color scale to be used for plotting the different components
 [lb, ub] = obj.bounds;
-results.meta.mapType = {'ang','ecc','rfsize','gain','expt','hrfshift','R2'};
+results.meta.mapField = {'ang','ecc','rfsize','gain','expt','hrfshift','R2'};
+results.meta.mapName = {'angle','eccentricity','rfsize','gain','exponent','hrfshift','R2'};
 results.meta.mapScale = {'pol','ecc','logJet','linearJet','linearJet','blueRed','grayRed'};
 results.meta.mapLabel = {'Polar angle [deg]','Eccentricity [deg]',...
     'Sigma [deg]','response gain [T2* units]',...
     'compressive exponent [au]','shift hrf peak time [secs]','R^2'};
-results.meta.mapBounds = {[-180 180],[1 90],[0.1 ub(3)],[lb(4) max(results.gain)],[lb(6) ub(6)],[0 1]};
+results.meta.mapBounds = {[-180 180],[1 90],[0.1 ub(3)],[lb(4) ub(4)],[lb(5) ub(5)],[lb(6) ub(6)],[0 1]};
 
 end
