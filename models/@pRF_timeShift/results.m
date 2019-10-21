@@ -38,8 +38,8 @@ r = params(:,1);
 c = params(:,2);
 
 % Map params and metric to a results structure
-results.x = c;
-results.y = r;
+results.cartX = c;
+results.cartY = r;
 results.ang = ...
     mod( atan2( rCenter - r, c - cCenter ), 2*pi ) / pi*180;
 results.ecc = ...
@@ -56,7 +56,7 @@ results.R2 =       posrect(metric);
 % wearing corrective lenses. We account for this effect here. While in
 % principle this could be rolled into the pixelsPerDegree variable, we
 % prefer to keep these separate to aid clear book-keeping.
-fieldsToAdjust = {'x','y','ecc','rfsize'};
+fieldsToAdjust = {'cartX','cartY','ecc','rfsize'};
 for ii = 1:length(fieldsToAdjust)
     results.(fieldsToAdjust{ii}) = ...
         ( results.(fieldsToAdjust{ii}) ./pixelsPerDegree) .* screenMagnification;
@@ -67,7 +67,7 @@ results.params =   params;
 
 % Identify the color scale to be used for plotting the different components
 [lb, ub] = obj.bounds;
-results.meta.mapField = {'x','y','ang','ecc','rfsize','gain','expt','hrfshift','R2'};
+results.meta.mapField = {'cartX','cartY','ang','ecc','rfsize','gain','expt','hrfshift','R2'};
 results.meta.mapName = {'cartX','cartY','angle','eccentricity','rfsize','gain','exponent','hrfshift','R2'};
 results.meta.mapScale = {'blueRed','blueRed','pol','ecc','logJet','linearJet','linearJet','blueRed','grayRed'};
 results.meta.mapLabel = {'Horizontal [deg]','Vertical [deg]','Polar angle [deg]','Eccentricity [deg]',...
