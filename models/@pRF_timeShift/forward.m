@@ -45,7 +45,7 @@ gaussWindow = makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0);
 gaussNorm = (2*pi*abs(pp(3))^2);
 
 % Gaussian window normalized, cropped to <res>, and vectorized
-gaussVector =  [vflatten(placematrix(zeros(res), gaussWindow / gaussNorm)); 0];
+gaussVector =  vflatten(placematrix(zeros(res), gaussWindow / gaussNorm));
 
 % Dot product of the stimulus by the Gaussian window (the neural signal),
 % subjected to a compressive non-linearity by raising to the pp(5)
