@@ -26,14 +26,20 @@ function results = results(obj, params, metric)
 
 % Obj variables
 res = obj.res;
+pixelsPerDegree = obj.pixelsPerDegree;
+screenMagnification = obj.screenMagnification;
 
 % Stimulus center
 rCenter = (1+res(1))/2;
 cCenter = (1+res(2))/2;
 
-% Map params and metric to a results structure
+% Rows and columns
 r = params(:,1);
 c = params(:,2);
+
+% Map params and metric to a results structure
+results.x = c;
+results.y = r;
 results.ang = ...
     mod( atan2( rCenter - r, c - cCenter ), 2*pi ) / pi*180;
 results.ecc = ...
@@ -42,19 +48,31 @@ results.rfsize =   abs(params(:,3) ./ sqrt(posrect(params(:,5))));
 results.gain =     posrect(params(:,4));
 results.expt =     posrect(params(:,5));
 results.hrfshift = params(:,6);
-results.R2 =       metric;
+results.R2 =       posrect(metric);
+
+% Convert the result data to units of visual angle in degrees. In this
+% step, account as well for the effect of corrective lenses. The stimulus
+% screen is subject to magnification / minification if the subject is
+% wearing corrective lenses. We account for this effect here. While in
+% principle this could be rolled into the pixelsPerDegree variable, we
+% prefer to keep these separate to aid clear book-keeping.
+fieldsToAdjust = {'x','y','ecc','rfsize'};
+for ii = 1:length(fieldsToAdjust)
+    results.(fieldsToAdjust{ii}) = ...
+        ( results.(fieldsToAdjust{ii}) ./pixelsPerDegree) .* screenMagnification;
+end
 
 % Add the params themselves
 results.params =   params;
 
 % Identify the color scale to be used for plotting the different components
 [lb, ub] = obj.bounds;
-results.meta.mapField = {'ang','ecc','rfsize','gain','expt','hrfshift','R2'};
-results.meta.mapName = {'angle','eccentricity','rfsize','gain','exponent','hrfshift','R2'};
-results.meta.mapScale = {'pol','ecc','logJet','linearJet','linearJet','blueRed','grayRed'};
-results.meta.mapLabel = {'Polar angle [deg]','Eccentricity [deg]',...
+results.meta.mapField = {'x','y','ang','ecc','rfsize','gain','expt','hrfshift','R2'};
+results.meta.mapName = {'cartX','cartY','angle','eccentricity','rfsize','gain','exponent','hrfshift','R2'};
+results.meta.mapScale = {'blueRed','blueRed','pol','ecc','logJet','linearJet','linearJet','blueRed','grayRed'};
+results.meta.mapLabel = {'Horizontal [deg]','Vertical [deg]','Polar angle [deg]','Eccentricity [deg]',...
     'Sigma [deg]','response gain [T2* units]',...
     'compressive exponent [au]','shift hrf peak time [secs]','R^2'};
-results.meta.mapBounds = {[-180 180],[1 90],[0.1 ub(3)],[lb(4) ub(4)],[lb(5) ub(5)],[lb(6) ub(6)],[0 1]};
+results.meta.mapBounds = {[lb(1) ub(1)]./pixelsPerDegree,[lb(2) ub(2)]./pixelsPerDegree,[-180 180],[1 90],[0.1 ub(3)/pixelsPerDegree],[lb(4) ub(4)],[lb(5) ub(5)],[lb(6) ub(6)],[0 1]};
 
 end

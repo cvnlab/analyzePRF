@@ -63,6 +63,8 @@ classdef pRF_timeShift < handle
         typicalGain
         forceBounds
         verbose
+        pixelsPerDegree
+        screenMagnification
     end
     
     methods
@@ -85,6 +87,10 @@ classdef pRF_timeShift < handle
             p.addParameter('seedScale','medium',@ischar);
             p.addParameter('forceBounds',true,@islogical);
             p.addParameter('verbose',true,@islogical);
+            p.addParameter('pixelsPerDegree',5.18,@isscalar);
+            p.addParameter('screenMagnification',1,@isscalar);
+        
+        
 
             % parse
             p.parse(data, stimulus, tr, varargin{:})
@@ -116,6 +122,8 @@ classdef pRF_timeShift < handle
             obj.seedScale = 'medium';
             obj.forceBounds = p.Results.forceBounds;
             obj.verbose = p.Results.verbose;
+            obj.pixelsPerDegree = p.Results.pixelsPerDegree;
+            obj.screenMagnification = p.Results.screenMagnification;
 
             % Create and cache the hrf
             obj.genhrf

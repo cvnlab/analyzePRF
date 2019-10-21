@@ -49,7 +49,6 @@ p.addParameter('modelOpts',{'typicalGain',30},@iscell);
 p.addParameter('modelPayload',{},@iscell);
 p.addParameter('tr',0.8,@isscalar);
 p.addParameter('vxs',[],@isvector);
-p.addParameter('hrf',[],@isvector);
 p.addParameter('maxIter',500,@isscalar);
 p.addParameter('verbose',true,@islogical);
 
