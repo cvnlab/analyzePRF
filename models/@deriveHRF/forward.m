@@ -9,6 +9,12 @@ function [fit, hrf] = forward(obj, pp)
 %   activity as defined by the stimulus, subject to convolution by an HRF
 %   that is defined by the params.
 %
+%   The HRF is a 6-parameter, double gamma HRF, described as model "IV" in:
+%
+%       Shan, Zuyao Y., et al. "Modeling of the hemodynamic responses in
+%       block design fMRI studies." Journal of Cerebral Blood Flow &
+%       Metabolism 34.2 (2014): 316-324.
+%
 % Inputs:
 %   pp                    - [1 nParams] vector.
 %
@@ -21,22 +27,6 @@ function [fit, hrf] = forward(obj, pp)
 %
 
 
-% Force the parameters within bounds
-if obj.forceBounds
-    [lb, ub] = obj.bounds;
-    idx = pp < lb;
-    pp(idx) = lb(idx);
-    idx = pp > ub;
-    pp(idx) = ub(idx);
-end
-
-% Unpack the params
-gamma1 = posrect(pp(1));
-gammaTimeRatio = posrect(pp(2));
-gamma2 = gamma1 * gammaTimeRatio;
-gammaScale = posrect(pp(3));
-gain = posrect(pp(4));
-
 % Obj variables
 stimulus = obj.stimulus;
 acqGroups = obj.acqGroups;
@@ -44,14 +34,14 @@ tr = obj.tr;
 duration = obj.duration;
 
 % THe neural signal is the stimulus, scaled by the gain.
-neuralSignal =  posrect(gain) * stimulus;
+neuralSignal =  pp(6) * stimulus;
 
 % Define the timebase in TRs
 timebase = 0:tr:ceil(duration/tr);
 
 % Create the double gamma function
-hrf = gampdf(timebase, gamma1, 1) - ...
-    gampdf(timebase, gamma2, 1)/gammaScale;
+hrf = ((timebase.^(pp(2)-1) .* (pp(3).^pp(2)) .* exp(-pp(3).*timebase) ) ./ gamma(pp(2)));
+hrf = hrf + pp(1) .* ((timebase.^(pp(4)-1) .* (pp(5).^pp(4)) .* exp(-pp(5).*timebase) ) ./ gamma(pp(4)));
 
 % Set to zero at onset
 hrf = hrf - hrf(1);

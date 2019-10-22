@@ -11,7 +11,7 @@ classdef deriveHRF < handle
         
         % The model is executed as a single stage search.
         nStages = 1;
-        floatSet = {[1 2 3 4]};
+        floatSet = {[1 2 3 4 5 6]};
         fixSet = {[]};
         
         % A description of the model
@@ -62,9 +62,6 @@ classdef deriveHRF < handle
         % HRF duration to model in seconds
         duration
         
-        % Force the model to be within bounds on each iteration
-        forceBounds
-        
         % Verbosity
         verbose
     end
@@ -85,8 +82,7 @@ classdef deriveHRF < handle
             p.addParameter('payload',{},@iscell);
             p.addParameter('polyDeg',[],@isscalar);
             p.addParameter('typicalGain',300,@isscalar);
-            p.addParameter('duration',24,@isscalar);
-            p.addParameter('forceBounds',true,@islogical);
+            p.addParameter('duration',50,@isscalar);
             p.addParameter('verbose',true,@islogical);
 
             % parse
@@ -113,7 +109,6 @@ classdef deriveHRF < handle
             obj.polyDeg = p.Results.polyDeg;
             obj.typicalGain = p.Results.typicalGain;
             obj.duration = p.Results.duration;
-            obj.forceBounds = p.Results.forceBounds;
             obj.verbose = p.Results.verbose;
             
             % Create and cache the projection matrix

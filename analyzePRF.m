@@ -101,12 +101,10 @@ seeds = model.seeds(data,vxs);
 
 
 %% Fit the data
-% Options for lsqcurvefit
-options = optimset('Display','off','FunValCheck','on', ...
+% Options for fmincon
+options = optimset('Display','off', ...
     'MaxFunEvals',Inf,'MaxIter',p.Results.maxIter, ...
-    'TolFun',1e-6,'TolX',1e-6, ...
-    'OutputFcn',@(a,b,c) outputfcnsanitycheck(a,b,c,1e-6,10));
-options.Algorithm = 'levenberg-marquardt';
+    'TolFun',1e-6,'TolX',1e-6);
 
 % Pre-compute functions that will asemble the parameters in the different
 % model stages
@@ -162,20 +160,11 @@ parfor ii=1:length(vxs)
             floatSet = model.floatSet{bb};
             
             % Call the non-linear fit function
-            x = lsqcurvefit(...
-                @(x,y) model.forward(xSort{bb}([x x0(fixSet)])),...
-                x0(floatSet),...
-                [],...
-                datats,[],[],options);
-            
-            % Force bounds
-            if model.forceBounds
-                idx = x < lb(floatSet);
-                x(idx) = lb(floatSet(idx));
-                idx = x > ub(floatSet);
-                x(idx) = ub(floatSet(idx));
-            end
-            
+            myObj = @(x) norm(datats - model.forward(xSort{bb}([x x0(fixSet)])));
+            x = fmincon(myObj,x0(floatSet),[],[],[],[], ...
+                lb(floatSet),ub(floatSet), ...
+                [],options);
+                        
             % Update the x0 guess with the searched params
             x0(model.floatSet{bb}) = x;
         end

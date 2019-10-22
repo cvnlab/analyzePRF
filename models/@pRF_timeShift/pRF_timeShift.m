@@ -74,6 +74,8 @@ classdef pRF_timeShift < handle
     
     % These may be modified after object creation
     properties (SetAccess=public)
+        
+        % 1x4 vector that defines the parameters of an HRF
         hrfParams
         
         % The number of low frequencies to be removed from each acquisition
@@ -81,11 +83,9 @@ classdef pRF_timeShift < handle
         
         % Typical amplitude of the BOLD fMRI response in the data
         typicalGain
-        
-        seedScale
 
-        % Force the model to be within bounds on each iteration
-        forceBounds
+        % The size of sigma produced for initial params
+        seedScale
         
         % Verbosity
         verbose
@@ -111,7 +111,6 @@ classdef pRF_timeShift < handle
             p.addParameter('polyDeg',[],@isscalar);
             p.addParameter('typicalGain',30,@isscalar);
             p.addParameter('seedScale','medium',@ischar);
-            p.addParameter('forceBounds',true,@islogical);
             p.addParameter('verbose',true,@islogical);
             p.addParameter('pixelsPerDegree',5.18,@isscalar);
             p.addParameter('screenMagnification',1,@isscalar);
@@ -145,7 +144,6 @@ classdef pRF_timeShift < handle
             obj.polyDeg = p.Results.polyDeg;
             obj.typicalGain = p.Results.typicalGain;
             obj.seedScale = 'medium';
-            obj.forceBounds = p.Results.forceBounds;
             obj.verbose = p.Results.verbose;
             obj.pixelsPerDegree = p.Results.pixelsPerDegree;
             obj.screenMagnification = p.Results.screenMagnification;

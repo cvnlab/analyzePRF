@@ -26,16 +26,20 @@ lb = nan(1,nParams);
 ub = nan(1,nParams);
 
 % The lower bounds
-lb(1) = 2;              % gamma1
-lb(2) = 1.1;            % gamma2 = gamma1 * x(2)
-lb(3) = 1;              % ratio of gamma 1 / gamma 2 amplitudes
-lb(4) = 0;              % gain (amplitude) of response
+lb(1) = -1;              % Aratio
+lb(2) = 2;              % alpha1
+lb(3) = 0.5;            % beta1
+lb(4) = 6;              % alpha2
+lb(5) = 0;              % beta2                    
+lb(6) = 0;              % gain (amplitude) of response
 
 % The upper bounds
-ub(1) = 10;              % gamma1
-ub(2) = 3;              % gamma2 = gamma1 * x(2)
-ub(3) = 200;             % ratio of gamma 1 / gamma 2 amplitudes
-ub(4) = Inf;            % gain (amplitude) of response
+ub(1) = 1;              % Aratio
+ub(2) = 10;             % alpha1
+ub(3) = 2;              % beta1
+ub(4) = 25;             % alpha2
+ub(5) = 1.5;            % beta2
+ub(6) = Inf;            % gain (amplitude) of response
 
 end
 

@@ -19,15 +19,6 @@ function fit = forward(obj, pp)
 %
 
 
-% Force the parameters within bounds
-if obj.forceBounds
-    [lb, ub] = obj.bounds;
-    idx = pp < lb;
-    pp(idx) = lb(idx);
-    idx = pp > ub;
-    pp(idx) = ub(idx);
-end
-
 % Obj variables
 stimulus = obj.stimulus;
 acqGroups = obj.acqGroups;
@@ -39,7 +30,7 @@ yy = obj.yy;
 resmx=max(res);
 
 % Gaussian at [x, y] pp(1), pp(2), of sigma size pp(3)
-gaussWindow = makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0);
+gaussWindow = makegaussian2d(resmx,pp(1),pp(2),pp(3),pp(3),xx,yy,0,0);
 
 % Normalization scalar
 gaussNorm = (2*pi*abs(pp(3))^2);
@@ -50,7 +41,7 @@ gaussVector =  vflatten(placematrix(zeros(res), gaussWindow / gaussNorm));
 % Dot product of the stimulus by the Gaussian window (the neural signal),
 % subjected to a compressive non-linearity by raising to the pp(5)
 % exponent.
-neuralSignal =  posrect(pp(4)) * (stimulus*gaussVector).^ posrect(pp(5));
+neuralSignal =  pp(4) * (stimulus*gaussVector).^ pp(5);
 
 % Shift the hrf by the number of seconds specified in pp(6)
 hrf = fshift(hrf,pp(6)/tr);
