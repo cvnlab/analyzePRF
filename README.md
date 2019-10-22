@@ -4,8 +4,8 @@ forwardModel is a MATLAB toolbox for non-linear fitting of models to fMRI
 data. It started life as analyzePRF (http://kendrickkay.net/analyzePRF/)
 by Kendrick Kay. It has undergone refactoring to operate as an object-
 oriented system for fitting models. Much of the clever structure that 
-Kendrick had created was stripped out to create a simpler, more general-
-purpose code set.
+Kendrick had created (e.g., for cross-validation) was stripped out to
+create a simpler, more general-purpose code set.
 
 The legacy of Kendrick's code is most clearly seen in the model for pRF
 mapping in retinotopic data. Specifically, the approach to creating
@@ -27,8 +27,7 @@ original codes in a few ways:
   - For retinotopic mapping designs that play the same stimulus forward and
     reverse in time, the model will estimate a shift of the HRF time-to-peak
     to best fit the data.
-  - Upper and lower bounds are enforced within the context of the levenberg-
-    marquardt algorithm.
+  - Upper and lower bounds are enforced with an fmincon search.
 
 More generally, the code supports the creation of object-oriented model
 classes that can be evaluated within a common framework.
