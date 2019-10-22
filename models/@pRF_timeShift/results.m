@@ -44,11 +44,11 @@ results.ang = ...
     mod( atan2( rCenter - r, c - cCenter ), 2*pi ) / pi*180;
 results.ecc = ...
     sqrt( (rCenter - r).^2 + (c - cCenter).^2);
-results.rfsize =   abs(params(:,3) ./ sqrt(posrect(params(:,5))));
-results.gain =     posrect(params(:,4));
-results.expt =     posrect(params(:,5));
+results.rfsize =   abs(params(:,3) ./ sqrt(params(:,5)));
+results.gain =     params(:,4);
+results.expt =     params(:,5);
 results.hrfshift = params(:,6);
-results.R2 =       posrect(metric);
+results.R2 =       metric;
 
 % Convert the result data to units of visual angle in degrees. In this
 % step, account as well for the effect of corrective lenses. The stimulus
