@@ -1,5 +1,5 @@
 function data = prep(obj,data)
-% Brief one line description of the function
+% Initial pre-processing of data cell array prior to model fitting
 %
 % Syntax:
 %   data = obj.prep(data)
