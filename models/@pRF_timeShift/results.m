@@ -38,8 +38,8 @@ r = params(:,1);
 c = params(:,2);
 
 % Map params and metric to a results structure
-results.cartX = c;
-results.cartY = r;
+results.cartX = c - cCenter;
+results.cartY = rCenter - r;
 results.ang = ...
     mod( atan2( rCenter - r, c - cCenter ), 2*pi ) / pi*180;
 results.ecc = ...
