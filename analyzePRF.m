@@ -1,4 +1,4 @@
-function results = analyzePRF(stimulus,data,varargin)
+function results = analyzePRF(stimulus,data,tr,varargin)
 % Non-linear model fitting of fMRI time-series data
 %
 % Syntax:
@@ -13,6 +13,7 @@ function results = analyzePRF(stimulus,data,varargin)
 %   data                  - A matrix [v t] or cell array of such
 %                           matricies. The fMRI time-series data across t
 %                           TRs, for v vertices / voxels.
+%   tr                    - Scalar. The TR of the fMRI data in seconds.
 %
 % Optional key/value pairs:
 %  'modelClass'           - Char vector. The name of one of the available
@@ -24,10 +25,8 @@ function results = analyzePRF(stimulus,data,varargin)
 %  'modelPayload'         - A cell array of additional inputs that is
 %                           passed to the model object. The form of the
 %                           payload is defined by the model object.
-%  'tr'                   - Scalar. The TR of the fMRI data in seconds.
 %  'vxs'                  - Vector. A list of vertices/voxels to be
 %                           processed.
-%  'hrf'                  - Vector. The hrf to be used to model the data.
 %  'maxIter'              - Scalar. The maximum number of iterations
 %                           conducted by lsqcurvefit in model fitting.
 %  'verbose'              - Logical.
@@ -43,17 +42,17 @@ p = inputParser; p.KeepUnmatched = false;
 % Required
 p.addRequired('stimulus',@(x)(iscell(x) || ismatrix(x)));
 p.addRequired('data',@(x)(iscell(x) || ismatrix(x)));
+p.addRequired('tr',@isscalar);
 
 p.addParameter('modelClass','pRF_timeShift',@ischar);
 p.addParameter('modelOpts',{'typicalGain',30},@iscell);
 p.addParameter('modelPayload',{},@iscell);
-p.addParameter('tr',0.8,@isscalar);
 p.addParameter('vxs',[],@isvector);
 p.addParameter('maxIter',500,@isscalar);
 p.addParameter('verbose',true,@islogical);
 
 % parse
-p.parse(stimulus,data, varargin{:})
+p.parse(stimulus,data,tr, varargin{:})
 verbose = p.Results.verbose;
 
 
@@ -114,6 +113,10 @@ for bb = 1:model.nStages
 	xSort{bb} = @(x) x(sortOrder);
 end
 
+% An anonymous function to squeeze the data from a cell array into a single
+% concatenated time series for the selected voxel/vertex
+tsGet = @(ii) cell2mat(cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0))';
+
 % Obtain the model bounds
 [lb, ub] = model.bounds;
 
@@ -133,11 +136,8 @@ parfor ii=1:length(vxs)
         fprintf('\b.\n');
     end
 
-    % Squeeze the data from a cell array into a single concatenated time
-    % series
-    data2 = cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0);
-    data3 = @(vxs) cellfun(@(x) subscript(squish(x,dimdata),{vxs ':'})',data2,'UniformOutput',0);
-    datats = catcell(1,data3(1));
+    % Get this time series
+    datats = tsGet(ii);
     
     % Apply the model cleaning step, which may include regression of
     % nuisance components.
@@ -151,7 +151,7 @@ parfor ii=1:length(vxs)
     for ss = 1:length(seeds)
         seed = seeds{ss}(vxs(ii),:);
         x0 = seed;
-        
+
         % Loop over model stages
         for bb = 1:model.nStages
             
@@ -164,11 +164,10 @@ parfor ii=1:length(vxs)
             x = fmincon(myObj,x0(floatSet),[],[],[],[], ...
                 lb(floatSet),ub(floatSet), ...
                 [],options);
-                        
             % Update the x0 guess with the searched params
             x0(model.floatSet{bb}) = x;
         end
-
+        
         % Store the final params
         seedParams(ss,:) = x0;
         
@@ -180,7 +179,7 @@ parfor ii=1:length(vxs)
     [~,bestSeedIdx]=max(seedMetric);
     parParams(ii,:) = seedParams(bestSeedIdx,:);
     parMetric(ii) = seedMetric(bestSeedIdx);
-
+    
 end
 
 % report completion of loop

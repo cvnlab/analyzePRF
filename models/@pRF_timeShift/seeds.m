@@ -6,13 +6,12 @@ function seeds = seeds(obj,data,vxs)
 %
 % Description:
 %   Generates a set of seed parameters for each voxel/vertex in vxs. The
-%   seeds consist of a "small" sigma and a "large" sigma seed, both
-%   positioned at the stimulus center, as well as a third seed that is
-%   determined by grid search. A set of time-series predictions are created
-%   for a plausible set of parameters that vary across location within the
-%   stimulus and sigma size. The prediction that is closest to the
-%   time-series data for a given voxel is found, and the parameters of that
-%   prediction are assigned as the third seed.
+%   seeds consist of a seed positioned at the stimulus center, as well as a
+%   seed that is determined by grid search. A set of time-series
+%   predictions are created for a plausible set of parameters that vary
+%   across location within the stimulus and sigma size. The prediction that
+%   is closest to the time-series data for a given voxel is found, and the
+%   parameters of that prediction are assigned as the third seed.
 %
 % Inputs:
 %   data                  - A matrix [v t] or cell array of such
@@ -43,15 +42,10 @@ totalVxs = size(data{1},1);
 % Store the seedScale
 seedScale = obj.seedScale;
 
-% Small scale seeds
-obj.seedScale = 'small';
+% Medium scale seeds
+obj.seedScale = 'medium';
 x0 = initial(obj);
 seeds{1} = repmat(x0,totalVxs,1);
-
-% Large scale seeds
-obj.seedScale = 'large';
-x0 = initial(obj);
-seeds{2} = repmat(x0,totalVxs,1);
 
 % restore the seedScale
 obj.seedScale = seedScale;
@@ -168,7 +162,7 @@ gridSeeds = nan(totalVxs,nParams);
 gridSeeds(vxs,:)=vxsSeeds;
 
 % Add the gridSeeds to the seed set cell array
-seeds{3} = gridSeeds;
+seeds{2} = gridSeeds;
 
 end
 
