@@ -113,10 +113,6 @@ for bb = 1:model.nStages
 	xSort{bb} = @(x) x(sortOrder);
 end
 
-% An anonymous function to squeeze the data from a cell array into a single
-% concatenated time series for the selected voxel/vertex
-tsGet = @(ii) cell2mat(cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0))';
-
 % Obtain the model bounds
 [lb, ub] = model.bounds;
 
@@ -136,8 +132,9 @@ parfor ii=1:length(vxs)
         fprintf('\b.\n');
     end
 
-    % Get this time series
-    datats = tsGet(ii);
+    % Squeeze the data from a cell array into a single concatenated time
+    % series for the selected voxel/vertex
+    datats = cell2mat(cellfun(@(x) x(vxs(ii),:),data,'UniformOutput',0))';
     
     % Apply the model cleaning step, which may include regression of
     % nuisance components.
