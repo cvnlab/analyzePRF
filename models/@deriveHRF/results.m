@@ -38,7 +38,6 @@ results.params =        params;
 % Identify the color scale to be used for plotting the different components
 [lb, ub] = obj.bounds;
 results.meta.mapField = {'gamma1','gamma2','gammaScale','gain','R2'};
-results.meta.mapName = {'gamma1','gamma2','gammaScale','gain','R2'};
 results.meta.mapScale = {'linearJet','linearJet','linearJet','gain','R2'};
 results.meta.mapLabel = {'gamma1 [secs]','gamma2 [secs]','Relative peak to undershoot','response gain [T2* units]','R2'};
 results.meta.mapBounds = {[lb(1) ub(1)],[lb(2) ub(2)],[lb(3) ub(3)],[0 1000],[0 1]};
