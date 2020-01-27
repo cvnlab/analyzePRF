@@ -72,8 +72,8 @@ end
 %% Analyze the data
 
 % Start parallel MATLAB to speed up execution.
-if matlabpool('size')==0
-  matlabpool open;
+if isempty(gcp)
+  parpool;
 end
 
 % We need to resample the data to match the temporal rate of the stimulus.  Here we use 
