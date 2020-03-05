@@ -70,8 +70,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   Values are in percentages and generally range between 0% and 100%.  The R^2 values
 %   are computed after projecting out polynomials from both the data and the model fit.
 %   (Because of this projection, R^2 values can sometimes drop below 0%.)  Note that
-%   if cross-validation is used (see <xvalmode>), the interpretation of <R2> changes
-%   accordingly.
+%   if cross-validation is used (see <xvalmode>), the <R2> is still the _training_ 
+%   performance for each iteration.
 % <resnorms> and <numiters> contain optimization details (residual norms and 
 %   number of iterations, respectively).
 % <meanvol> contains the mean volume, that is, the mean of each voxel's time-series.
@@ -80,6 +80,11 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   in the code.  These raw parameters are transformed to a more palatable format for
 %   the user (as described above).
 % <options> contains a record of the options used in the call to analyzePRF.m.
+%
+% If cross-validation (<xvalmode> ~= 0) is used, the results structure also contains:
+% <testperformance> contains R^2 values for the testing performance on each iteration.
+% <aggregatedtestperformance> contains R^2 values for testing performance after
+%   aggregating predictions across iterations.
 %
 % Details on the pRF model:
 % - Before analysis, we zero out any voxel that has a non-finite value or has all zeros
@@ -146,6 +151,11 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
 % history:
+% 2020/03/05 - BUG FIX. Previously, when <xvalmode> ~= 0, the <R2> values that were output
+%              were training performance values (even though we implied that they were
+%              testing performance values). Now, we preserve that behavior, but now also
+%              output new fields <testperformance> and <aggregatedtestperformance>,
+%              which indicate the cross-validated values.
 % 2019/08/23 - Major change: the <stimulus> variable is now no longer forced to become
 %              single format. This means the user controls whether computations are done
 %              in double or single format. Please note that behavior (including finicky
@@ -586,6 +596,10 @@ results.R2 =       NaN*zeros(numvxs,numfits);
 results.gain =     NaN*zeros(numvxs,numfits);
 results.resnorms = cell(numvxs,1);
 results.numiters = cell(numvxs,1);
+if xvalmode ~= 0
+  results.testperformance =           NaN*zeros(numvxs,numfits);
+  results.aggregatedtestperformance = NaN*zeros(numvxs,1);
+end
 
 % massage model parameters for output and put in 'results' struct
 results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - paramsA(:,1,:), ...
@@ -600,6 +614,10 @@ if ~wantquick
   results.resnorms(options.vxs) = a1.resnorms;
   results.numiters(options.vxs) = a1.numiters;
 end
+if xvalmode ~= 0
+  results.testperformance(options.vxs,:) =         permute(a1.testperformance,[2 1]);
+  results.aggregatedtestperformance(options.vxs) = a1.aggregatedtestperformance;
+end
 
 % reshape
 results.ang =      reshape(results.ang,      [xyzsize numfits]);
@@ -610,6 +628,10 @@ results.R2 =       reshape(results.R2,       [xyzsize numfits]);
 results.gain =     reshape(results.gain,     [xyzsize numfits]);
 results.resnorms = reshape(results.resnorms, [xyzsize 1]);
 results.numiters = reshape(results.numiters, [xyzsize 1]);
+if xvalmode ~= 0
+  results.testperformance =           reshape(results.testperformance,[xyzsize numfits]);
+  results.aggregatedtestperformance = reshape(results.aggregatedtestperformance,[xyzsize 1]);
+end
 
 % add some more stuff
 results.meanvol =  meanvol;
