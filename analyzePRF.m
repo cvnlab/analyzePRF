@@ -596,7 +596,7 @@ results.R2 =       NaN*zeros(numvxs,numfits);
 results.gain =     NaN*zeros(numvxs,numfits);
 results.resnorms = cell(numvxs,1);
 results.numiters = cell(numvxs,1);
-if xvalmode ~= 0
+if options.xvalmode ~= 0
   results.testperformance =           NaN*zeros(numvxs,numfits);
   results.aggregatedtestperformance = NaN*zeros(numvxs,1);
 end
@@ -614,7 +614,7 @@ if ~wantquick
   results.resnorms(options.vxs) = a1.resnorms;
   results.numiters(options.vxs) = a1.numiters;
 end
-if xvalmode ~= 0
+if options.xvalmode ~= 0
   results.testperformance(options.vxs,:) =         permute(a1.testperformance,[2 1]);
   results.aggregatedtestperformance(options.vxs) = a1.aggregatedtestperformance;
 end
@@ -628,7 +628,7 @@ results.R2 =       reshape(results.R2,       [xyzsize numfits]);
 results.gain =     reshape(results.gain,     [xyzsize numfits]);
 results.resnorms = reshape(results.resnorms, [xyzsize 1]);
 results.numiters = reshape(results.numiters, [xyzsize 1]);
-if xvalmode ~= 0
+if options.xvalmode ~= 0
   results.testperformance =           reshape(results.testperformance,[xyzsize numfits]);
   results.aggregatedtestperformance = reshape(results.aggregatedtestperformance,[xyzsize 1]);
 end
