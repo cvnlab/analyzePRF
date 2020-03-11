@@ -51,6 +51,9 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   <display> (optional) is 'iter' | 'final' | 'off'.  default: 'iter'.
 %   <typicalgain> (optional) is a typical value for the gain in each time-series.
 %     default: 10.
+%   <usecss> (optional) logical true/false value, if set to false: (1) changes
+%   the boundaries to [NaN 1] and (2) the seed values of the exponentials to be
+%   always 1. Default is true.
 %
 % Analyze pRF data and return the results.
 %
@@ -187,10 +190,10 @@ stime = clock;  % start time
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INTERNAL CONSTANTS
 
 % define
-remotedir = '/scratch/knk/input/';
-remotedir2 = '/scratch/knk/output/';
-remotelogin = 'knk@login2.chpc.wustl.edu';
-remoteuser = 'knk';
+% remotedir = '/scratch/knk/input/';
+% remotedir2 = '/scratch/knk/output/';
+% remotelogin = 'knk@login2.chpc.wustl.edu';
+% remoteuser = 'knk';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SETUP AND PREPARATION
 
@@ -254,6 +257,10 @@ end
 if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
   options.typicalgain = 10;
 end
+if ~isfield(options,'usecss') || isempty(options.usecss)
+  options.usecss = true;
+end
+
 
 % massage
 wantquick = isequal(options.seedmode,-2);
@@ -324,34 +331,85 @@ end
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
 % define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-              2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+% Select the correct boundaries depending if we want CSS or not
+if options.usecss
+    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+    model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+        2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
+        {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
+        2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+else
+    modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
+    model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+        2*res(1)-1 2*res(2)-1 Inf  Inf 1] modelfun}};
+end
+
+               
+%% Little effort to clarify the modelfun function. This is just a comment.
+
+% Inputs of the function
+%   pp = parameters matrix
+%   dd = data matrix
+% Components of the algorithm, from above:
+%   The model involves computing the dot-product between the stimulus and a 2D isotropic
+%   Gaussian, raising the result to an exponent, scaling the result by a gain factor,
+%   and then convolving the result with a hemodynamic response function (HRF).  Polynomial
+%   terms are included (on a run-by-run basis) to model the baseline signal level.
+
+% modelfun = @(pp,dd) ...  % Defines the inputs to the function, params (to be guessed) and data
+%            conv2run(...  % Defines the main function, a convolution. We will want to guess the params
+%               posrect(pp(4)) * ...  % FIRST part of the convolution. It has form A * B. This is A
+%                 (...                  % B starts here. Separate it as well
+%                   dd * ...               % Data matrix
+%                   [vflatten( ...         % Vector. vflatten just returns a vertical vector. Same as kk(:).
+%                         placematrix( ...    % Substitutes matrix 2 into matrix 1 depending on matrix 3
+%                              zeros(res), ...    % Matrix 1
+%                              makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / ... % Matrix 2: element1
+%                              (2*pi*abs(pp(3))^2) ...                                                 % Matrix 2: element2
+%                                     ) ...   % Close placematrix
+%                             )...          % Close vflatten 
+%                     ;0]...               % Adds a 0 to the flattened matrix (vector) at the end
+%                  ).^posrect(pp(5)),...% End of B part B of A*B part of the convolution. This is the parameter in the exponential
+%                options.hrf,...      % SECOND part of the convolution, the HRF signal
+%                dd(:,prod(res)+1) ...% THIRD part of the conv, according knk. Separates convs between runs. This third part is basically a categorization. See help conv2run
+%              );          % Close the convolution function
+% Now the model function needs to be incorporated into a model that lsqcurvefit understands
+% Create two different functions that, fitnonlinear.m will loop over the 2 functions. From above:
+%   A two-stage optimization strategy is used whereby all parameters excluding the
+%   exponent parameter are first optimized (holding the exponent parameter fixed) and 
+%   then all parameters are optimized (including the exponent parameter).  This 
+%   strategy helps avoid local minima.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
 
 % init
 seeds = [];
 
+% Select the css expontial for the different seeds
+if options.usecss
+    cssexpt = 0.5;
+else
+    cssexpt = 1;
+end
+
 % generic large seed
 if ismember(0,options.seedmode)
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(cssexpt) options.typicalgain cssexpt];
 end
 
 % generic small seed
 if ismember(1,options.seedmode)
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(cssexpt)/10 options.typicalgain cssexpt];
 end
 
 % super-grid seed
 if any(ismember([2 -2],options.seedmode))
   [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                    options.maxpolydeg,dimdata,dimtime, ...
-                                                   options.typicalgain,noisereg);
+                                                   options.typicalgain,noisereg,options.usecss);
 end
 
 % make a function that individualizes the seeds
@@ -509,7 +567,7 @@ else
     'wantremovepoly',1, ...
     'extraregressors',noiseregINPUT, ...
     'wantremoveextra',0, ...
-    'dontsave',{{'modelfit' 'opt' 'vxsfull' 'modelpred' 'testdata'}});  % 'resnorms' 'numiters' 
+    'dontsave',{{'opt' 'vxsfull'}}); % GLU: we want to see the fit and testdata that goes to lsqcurvefit
 
           %  'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d), ...
           %'outputfcn',@(a,b,c,d) pause2(.1) | outputfcnsanitycheck(a,b,c,1e-6,10) | outputfcnplot(a,b,c,1,d));
@@ -619,6 +677,19 @@ if options.xvalmode ~= 0
   results.aggregatedtestperformance(options.vxs) = a1.aggregatedtestperformance;
 end
 
+% Small sanity check. If usecss=false, results.expt need to be always one. 
+% Otherwise, throw an error:
+if ~(options.usecss)
+    if length(unique(results.expt))==1
+        if unique(results.expt) ~= 1
+            error('usecss is set to false, but the value of the exponential is not 1')
+        end
+    else
+        error('usecss is set to false, and there are more than one solutions for the exponential')
+    end
+end
+
+
 % reshape
 results.ang =      reshape(results.ang,      [xyzsize numfits]);
 results.ecc =      reshape(results.ecc,      [xyzsize numfits]);
@@ -638,6 +709,10 @@ results.meanvol =  meanvol;
 results.noisereg = noisereg;
 results.params =   paramsA;
 results.options = options;
+
+% added some more, to see model prediction and data that goes into lsqcurvefit
+results.modelpred = a1.modelpred';
+results.testdata  = a1.testdata';
 
 % save 'results' to a temporary file so we don't lose these precious results!
 file0 = [tempname '.mat'];

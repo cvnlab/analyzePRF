@@ -1,6 +1,6 @@
-function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+function [seeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg,usecss)
 
-% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg)
+% function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,modelfun,maxpolydeg,dimdata,dimtime,typicalgain,noisereg,usecss)
 %
 % <res> is [R C] with the resolution of the stimuli
 % <stimulus> is a cell vector of time x (pixels+1)
@@ -11,6 +11,7 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % <dimtime> is the dimension that is the time dimension
 % <typicalgain> is a typical value for the gain in each time-series
 % <noisereg> is [] or a set of noise regressors (cell vector of matrices)
+% <usecss> logical, true use CSS, false make the exponential 1
 %
 % this is an internal function called by analyzePRF.m.  this function returns <seeds>
 % as a matrix of dimensions X x Y x Z x parameters (or XYZ x parameters)
@@ -27,7 +28,14 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % internal constants
 eccs = [0 0.00551 0.014 0.0269 0.0459 0.0731 0.112 0.166 0.242 0.348 0.498 0.707 1];
 angs = linspacecircular(0,2*pi,16);
-expts = [0.5 0.25 0.125];
+
+
+% Select the css expontials for the different seeds
+if usecss
+    expts = [0.5 0.25 0.125];
+else
+    expts = [1];
+end
 
 % calc
 numvxs = prod(sizefull(data{1},dimdata));  % total number of voxels
