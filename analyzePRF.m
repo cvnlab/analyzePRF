@@ -37,6 +37,11 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     best seed based on the super-grid to be returned as the final estimate, thereby
 %     bypassing the computationally expensive optimization procedure.  further notes
 %     on this case are given below.
+%   <modelmode> (optional) is
+%     1 means a two-stage approach (optimize all parameters excluding exponent,
+%       and then optimize all parameters)
+%     2 means a one-stage approach (optimize all parameters)
+%     default: 1.
 %   <xvalmode> (optional) is
 %     0 means just fit all the data
 %     1 means two-fold cross-validation (first half of runs; second half of runs)
@@ -139,9 +144,9 @@ function results = analyzePRF(stimulus,data,tr,options)
 % - When <seedmode> is -2, optimization is not performed and instead the best seed
 %   based on the super-grid is returned as the final estimate.  If this case is used,
 %   we automatically enforce that:
-%   - opt.xvalmode is 0
-%   - opt.vxs is []
-%   - opt.numperjob is []
+%   - options.xvalmode is 0
+%   - options.vxs is []
+%   - options.numperjob is []
 %   Also, in terms of outputs:
 %   - The <gain> output is not estimated, and gain values are just returned as <typicalgain>.
 %   - The <R2> output will contain correlation values (r) that range between -1 and 1.
@@ -151,6 +156,7 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
 % history:
+% 2020/06/18 - add <modelmode> input option.  Fix opt -> options typo bug.
 % 2020/03/05 - BUG FIX. Previously, when <xvalmode> ~= 0, the <R2> values that were output
 %              were training performance values (even though we implied that they were
 %              testing performance values). Now, we preserve that behavior, but now also
@@ -239,6 +245,9 @@ end
 if ~isfield(options,'seedmode') || isempty(options.seedmode)
   options.seedmode = [0 1 2];
 end
+if ~isfield(options,'modelmode') || isempty(options.modelmode)
+  options.modelmode = 1;
+end
 if ~isfield(options,'xvalmode') || isempty(options.xvalmode)
   options.xvalmode = 0;
 end
@@ -261,9 +270,9 @@ options.seedmode = union(options.seedmode(:),[]);
 
 % massage more
 if wantquick
-  opt.xvalmode = 0;
-  opt.vxs = 1:numvxs;
-  opt.numperjob = [];
+  options.xvalmode = 0;
+  options.vxs = 1:numvxs;
+  options.numperjob = [];
 end
 
 % calc
@@ -325,10 +334,16 @@ end
 
 % define the model (parameters are R C S G N)
 modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-              2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-         {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
-                   2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+switch options.modelmode
+case 1
+  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
+           {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
+                     2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+case 2
+  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   0;
+                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
 
@@ -536,7 +551,7 @@ else
 
     % submit jobs
     jobnames = {};
-    jobnames = [jobnames {makedirid(opt.outputdir,1)}];
+    jobnames = [jobnames {makedirid(options.outputdir,1)}];
     jobids = [];
     jobids = [jobids chpcrun(jobnames{end},'fitnonlinearmodel',options.numperjob, ...
                              1,ceil(length(options.vxs)/options.numperjob),[], ...
