@@ -8,6 +8,10 @@ The toolbox has several dependencies:
 - GLMdenoise (necessary only if you use the GLMdenoise feature; to download
               GLMdenoise, see http://kendrickkay.net/GLMdenoise/)
 
+Also, the code makes use of "parfor" (Matlab Parallel Computing Toolbox).
+However, this is not mandatory, as you can change the "parfor" contained
+in fitnonlinearmodel.m to a regular "for" loop, if you like.
+
 To use the toolbox, add it to your MATLAB path:
   addpath(genpath('analyzePRF'));
 
