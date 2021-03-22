@@ -14,7 +14,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     V is total number of voxels.  to reduce computational time, you may want 
 %     to create a binary brain mask, perform find() on it, and use the result as <vxs>.
 %   <wantglmdenoise> (optional) is whether to use GLMdenoise to determine
-%     nuisance regressors to add into the PRF model.  note that in order to use
+%     nuisance regressors to add into the PRF model.  this is fairly experimental 
+%     and not recommended for general use at this time.  note that in order to use
 %     this feature, there must be at least two runs (and conditions must repeat
 %     across runs).  we automatically determine the GLM design matrix based on
 %     the contents of <stimulus>.  special case is to pass in the noise regressors 
@@ -27,7 +28,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   <maxpolydeg> (optional) is a non-negative integer indicating the maximum polynomial
 %     degree to use for drift terms.  can be a vector whose length matches the number
 %     of runs in <data>.  default is to use round(L/2) where L is the number of minutes
-%     in the duration of a given run.
+%     in the duration of a given run.  special case is NaN, which means to not include
+%     any drift terms at all (not even a constant term).
 %   <seedmode> (optional) is a vector consisting of one or more of the
 %     following values (we automatically sort and ensure uniqueness):
 %       0 means use generic large PRF seed
@@ -36,11 +38,14 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     default: [0 1 2].  a special case is to pass <seedmode> as -2.  this causes the
 %     best seed based on the super-grid to be returned as the final estimate, thereby
 %     bypassing the computationally expensive optimization procedure.  further notes
-%     on this case are given below.
+%     on this case are given below.  another special case is passing <seedmode> as
+%     {S}, in which case we directly use the seeds contained in S, a matrix of 
+%     dimensions one-or-more-seeds x 5 parameters as the PRF seed(s).
 %   <modelmode> (optional) is
 %     1 means a two-stage approach (optimize all parameters excluding exponent,
 %       and then optimize all parameters)
 %     2 means a one-stage approach (optimize all parameters)
+%     3 means a one-stage approach (optimize all parameters excluding exponent)
 %     default: 1.
 %   <xvalmode> (optional) is
 %     0 means just fit all the data
@@ -54,15 +59,24 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     default: [].
 %   <maxiter> (optional) is the maximum number of iterations.  default: 500.
 %   <display> (optional) is 'iter' | 'final' | 'off'.  default: 'iter'.
+%   <algorithm> (optional) is passed to MATLAB's optimizer, can be like
+%     'levenberg-marquardt', 'trust-region-reflective', etc.
+%     default: 'levenberg-marquardt'.
 %   <typicalgain> (optional) is a typical value for the gain in each time-series.
-%     default: 10.
+%     default: 10.  if you are using <seedmode> of either 2 or -2, this involves
+%     the "super-grid" strategy, and in this case, you may want to consider setting 
+%     <typicalgain> to NaN; this enables some special calculations and 
+%     results in a gain seed that is more accurate (it is set to 0.75 of the 
+%     value that would produce the least-squares fit for the chosen seed, 
+%     with a restriction to non-negative values only).
 %
 % Analyze pRF data and return the results.
 %
 % The results structure contains the following fields:
 % <ang> contains pRF angle estimates.  Values range between 0 and 360 degrees.
 %   0 corresponds to the right horizontal meridian, 90 corresponds to the upper vertical
-%   meridian, and so on.
+%   meridian, and so on.  In the case where <ecc> is estimated to be exactly equal
+%   to 0, the corresponding <ang> value is deliberately set to NaN.
 % <ecc> contains pRF eccentricity estimates.  Values are in pixel units with a lower
 %   bound of 0 pixels.
 % <rfsize> contains pRF size estimates.  pRF size is defined as sigma/sqrt(n) where
@@ -109,14 +123,16 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   interpretation of the model (e.g. helps avoid voxels with negative BOLD responses
 %   to the stimuli).
 % - The workhorse of the analysis is fitnonlinearmodel.m, which is essentially a wrapper 
-%   around routines in the MATLAB Optimization Toolbox.  We use the Levenberg-Marquardt 
-%   algorithm for optimization, minimizing squared error between the model and the data.
+%   around routines in the MATLAB Optimization Toolbox.  We default to use the 
+%   Levenberg-Marquardt algorithm for optimization (but this can be controlled by
+%   options.algorithm), minimizing squared error between the model and the data.
 % - A two-stage optimization strategy is used whereby all parameters excluding the
 %   exponent parameter are first optimized (holding the exponent parameter fixed) and 
 %   then all parameters are optimized (including the exponent parameter).  This 
 %   strategy helps avoid local minima.
 %
 % Regarding GLMdenoise:
+% - Note this is probably not recommended for use due to the various complexities involved.
 % - If the <wantglmdenoise> option is specified, we derive noise regressors using
 %   GLMdenoise prior to model fitting.  This is done by creating a GLM design matrix
 %   based on the contents of <stimulus> and then using this design matrix in conjunction
@@ -155,7 +171,30 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     <wantglmdenoise> is specified) from both the model prediction and the data.
 %   - The <resnorms> and <numiters> outputs will be empty.
 %
+% Regarding using a linear pRF model:
+% - Recent options that have now been implemented will allow easy fitting of 
+%   a linear pRF model (i.e. exponent equal to 1).  To do this, you can use 
+%   <modelmode> set to 3, which will cause the exponent to not be optimized.  
+%   And then in conjunction with that, you can set <seedmode> to an explicit
+%   seed like {[R C SD GAIN 1]} (where the R and C provide the row and column 
+%   index of the seed (in pixel units), SD provides the sigma parameter (in
+%   pixel units), GAIN is the gain parameter, and 1 is the exponent parameter.
+%   This is a little clunky but works...
+%
 % history:
+% 2021/03/22 - Several changes:
+%              (1) When eccentricity is estimated to be exactly 0, the
+%                  corresponding angle values are now deliberately
+%                  set to NaN. Previous behavior resulted in angle values being
+%                  returned as 0 (since atan2(0,0) results in 0).
+%              (2) Add support for <maxpolydeg> to be NaN which allows 
+%                  for no drift terms to be included (not even a constant).
+%              (3) Add support for allowing user input <options.algorithm>.
+%              (4) Add support for <options.seedmode> to be the {S} case.
+%                  This allows the user to directly specify the initial seed(s).
+%              (5) Add support for <modelmode> to be 3. This makes it such that
+%                  the exponent is fixed and not optimized. This could be useful
+%                  to fit stricly linear pRF models (see documentation above).
 % 2020/06/18 - add <modelmode> input option.  Fix opt -> options typo bug.
 % 2020/03/05 - BUG FIX. Previously, when <xvalmode> ~= 0, the <R2> values that were output
 %              were training performance values (even though we implied that they were
@@ -260,13 +299,18 @@ end
 if ~isfield(options,'display') || isempty(options.display)
   options.display = 'iter';
 end
+if ~isfield(options,'algorithm') || isempty(options.algorithm)
+  options.algorithm = 'levenberg-marquardt';
+end
 if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
   options.typicalgain = 10;
 end
 
 % massage
 wantquick = isequal(options.seedmode,-2);
-options.seedmode = union(options.seedmode(:),[]);
+if ~iscell(options.seedmode)
+  options.seedmode = union(options.seedmode(:),[]);
+end
 
 % massage more
 if wantquick
@@ -343,6 +387,9 @@ case 1
 case 2
   model = {{[] [1-res(1)+1 1-res(2)+1 0    0   0;
                 2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
+case 3
+  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
+                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
@@ -350,23 +397,30 @@ end
 % init
 seeds = [];
 
-% generic large seed
-if ismember(0,options.seedmode)
+if iscell(options.seedmode)
   seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
-end
+           options.seedmode{1}];
+else
+ 
+  % generic large seed
+  if ismember(0,options.seedmode)
+    seeds = [seeds;
+             (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+  end
 
-% generic small seed
-if ismember(1,options.seedmode)
-  seeds = [seeds;
-           (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
-end
+  % generic small seed
+  if ismember(1,options.seedmode)
+    seeds = [seeds;
+             (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+  end
 
-% super-grid seed
-if any(ismember([2 -2],options.seedmode))
-  [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
-                                                   options.maxpolydeg,dimdata,dimtime, ...
-                                                   options.typicalgain,noisereg);
+  % super-grid seed
+  if any(ismember([2 -2],options.seedmode))
+    [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
+                                                     options.maxpolydeg,dimdata,dimtime, ...
+                                                     options.typicalgain,noisereg);
+  end
+
 end
 
 % make a function that individualizes the seeds
@@ -516,7 +570,7 @@ else
     'vxs',options.vxs, ...
     'model',{model}, ...
     'seed',seedfun, ...
-    'optimoptions',{{'Display' options.display 'Algorithm' 'levenberg-marquardt' 'MaxIter' options.maxiter}}, ...
+    'optimoptions',{{'Display' options.display 'Algorithm' options.algorithm 'MaxIter' options.maxiter}}, ...
     'wantresampleruns',wantresampleruns, ...
     'resampling',resampling, ...
     'metric',@calccod, ...
@@ -633,6 +687,9 @@ if options.xvalmode ~= 0
   results.testperformance(options.vxs,:) =         permute(a1.testperformance,[2 1]);
   results.aggregatedtestperformance(options.vxs) = a1.aggregatedtestperformance;
 end
+
+% check for special case of ecc==0; set angle to NaN since it is undefined
+results.ang(results.ecc==0) = NaN;
 
 % reshape
 results.ang =      reshape(results.ang,      [xyzsize numfits]);
