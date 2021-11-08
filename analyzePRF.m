@@ -4,6 +4,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %
 % <stimulus> provides the apertures as a cell vector of R x C x time.
 %   values should be in [0,1].  the number of time points can differ across runs.
+%   consider passing <stimulus> in double format to ensure that computation
+%   occurs with optimal precision (less chance of local minima)!
 % <data> provides the data as a cell vector of voxels x time.  can also be
 %   X x Y x Z x time.  the number of time points should match the number of 
 %   time points in <stimulus>.
