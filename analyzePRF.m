@@ -249,6 +249,11 @@ if ~iscell(data)
   data = {data};
 end
 
+% check single or double
+if ~isequal(class(stimulus{1}),'double') || ~isequal(class(data{1}),'double')
+  warning('either <stimulus> or <data> is not double format. consider using double format for better precision.');
+end
+
 % calc
 is3d = size(data{1},4) > 1;
 if is3d
