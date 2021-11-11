@@ -12,6 +12,9 @@ function noisereg = analyzePRFcomputeGLMdenoiseregressors(stimulus,data,tr)
 % the results of GLMdenoisedata.m are saved to temporary files (as reported to the
 % command window).
 
+% put up a warning
+warning('use of GLMdenoiseregressors in analyzePRF is experimental and not recommended');
+
 % internal constants
 corrthresh = .9;  % used in determining which apertures are the same
 
