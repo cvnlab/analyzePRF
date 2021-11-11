@@ -34,8 +34,7 @@ If you use analyzePRF in your research, please cite the following paper:
     Compressive spatial summation in human visual cortex.
     J. Neurophys. doi: 10.1152/jn.00105.2013
 
-History of major code changes:
-- 2014/06/17 - Version 1.1.
+For history of major code changes, see the documentation in analyzePRF.m
 
 ## CONTENTS
 
