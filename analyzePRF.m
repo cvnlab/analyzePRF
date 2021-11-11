@@ -184,6 +184,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2021/11/11 - update exampledataset.mat to be in double format.
+%              also, we now issue a warning if the user provides single-format data!
 % 2021/03/22 - Several changes:
 %              (1) When eccentricity is estimated to be exactly 0, the
 %                  corresponding angle values are now deliberately
@@ -251,7 +253,7 @@ end
 
 % check single or double
 if ~isequal(class(stimulus{1}),'double') || ~isequal(class(data{1}),'double')
-  warning('either <stimulus> or <data> is not double format. consider using double format for better precision.');
+  warning('either <stimulus> or <data> is not double format. use double format for better accuracy/precision!');
 end
 
 % calc
