@@ -184,6 +184,7 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2021/11/11 - tag this as version 1.3.
 % 2021/11/11 - update exampledataset.mat to be in double format.
 %              also, we now issue a warning if the user provides single-format data!
 % 2021/03/22 - Several changes:
