@@ -13,11 +13,6 @@ load('exampledataset.mat');
 whos
 %%
 
-% Note that the stimulus and data here are prepared in single format.
-% You may wish to consider preparing them in double format, as this has
-% the potential to produce more accurate results (and be less susceptible
-% to local minima), albeit at the expense of potentially more computational time.
-
 %% Inspect the data
 
 % Check dimensionality of the data
