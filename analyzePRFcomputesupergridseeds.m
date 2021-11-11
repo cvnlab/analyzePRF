@@ -19,7 +19,9 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % (or XYZ x 1) with the corresponding correlation (r) values.
 %
 % history:
-% 2015/02/07 - make less memory intensive
+% - 2021/11/11 - remove the forcing of single format and instead inherit from <data>.
+%                also, explicitly handle some pernicious corner cases.
+% - 2015/02/07 - make less memory intensive
 
 % internal notes:
 % - note that the gain seed is fake (it is not set the correct value but instead
@@ -67,7 +69,7 @@ allseeds(cnt:end,:) = [];  % chop because of the omission above
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% generate the predicted time-series for each seed
 
 % generate predicted time-series [note that some time-series are all 0]
-predts = zeros(sum(cellfun(@(x) size(x,1),stimulus)),size(allseeds,1),'single');  % time x seeds
+predts = zeros(sum(cellfun(@(x) size(x,1),stimulus)),size(allseeds,1),class(data{1}));  % time x seeds
 temp = catcell(1,stimulus);
 fprintf('generating super-grid time-series...'); tic
 parfor p=1:size(allseeds,1)
@@ -110,6 +112,9 @@ pmatrix = projectionmatrix(blkdiag(pregressors{:}));
 predts = pmatrix*predts;  % time x seeds
 predtslen = vectorlength(predts,1);  % 1 x seeds
 predts = bsxfun(@rdivide,predts,predtslen);  % time x seeds
+  % really ugly (deal with time series that have no length)
+predts(repmat(predtslen==0,[size(predts,1) 1])) = 0;
+predtslen(predtslen==0) = 1;
   % OLD: predts = unitlength(pmatrix*predts,1,[],0);  % time x seeds   [NOTE: some are all NaN]
   % OLD: datats = unitlength(pmatrix*squish(catcell(dimtime,data),dimdata)',1,[],0);  % time x voxels
 
@@ -127,6 +132,9 @@ parfor p=1:length(chunks)
   datats = pmatrix*catcell(2,cellfun(@(x) subscript(squish(x,dimdata),{chunks{p} ':'}),data,'UniformOutput',0))';
   datatslen = vectorlength(datats,1);  % 1 x voxels
   datats = bsxfun(@rdivide,datats,datatslen);  % time x voxels
+    % really ugly (deal with time series that have no length)
+  datats(repmat(datatslen==0,[size(datats,1) 1])) = 0;
+  datatslen(datatslen==0) = 1;
     % OLD: datats = unitlength(temp,1,[],0);  % time x voxels
 
   % voxels x 1 with index of the best seed (max corr)
