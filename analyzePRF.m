@@ -66,11 +66,10 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     default: 'levenberg-marquardt'.
 %   <typicalgain> (optional) is a typical value for the gain in each time-series.
 %     default: 10.  if you are using <seedmode> of either 2 or -2, this involves
-%     the "super-grid" strategy, and in this case, you may want to consider setting 
-%     <typicalgain> to NaN; this enables some special calculations and 
-%     results in a gain seed that is more accurate (it is set to 0.75 of the 
-%     value that would produce the least-squares fit for the chosen seed, 
-%     with a restriction to non-negative values only).
+%     the "super-grid" strategy, and in this case, we ignore <typicalgain> and
+%     instead do some special calculations to set the gain more appropriately
+%     (specifically, to 0.75 of the value that would produce the least-squares
+%     fit for the chosen seed, with a restriction to non-negative values only).
 %
 % Analyze pRF data and return the results.
 %
@@ -184,6 +183,11 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2021/11/22 - tag this as version 1.4.
+% 2021/11/22 - For 2 and -2 "supergrid" cases for <seedmode>, we now always
+%              use the <typicalgain>==NaN setting, which means to use an 
+%              appropriate initial value for the gain. this should improve
+%              overall result quality. Note that this changes past behavior!
 % 2021/11/11 - tag this as version 1.3.1.
 % 2021/11/11 - implemented a speed-up.
 % 2021/11/11 - tag this as version 1.3.
@@ -430,7 +434,7 @@ else
   if any(ismember([2 -2],options.seedmode))
     [supergridseeds,rvalues] = analyzePRFcomputesupergridseeds(res,stimulus,data,modelfun, ...
                                                      options.maxpolydeg,dimdata,dimtime, ...
-                                                     options.typicalgain,noisereg);
+                                                     NaN,noisereg);
   end
 
 end
