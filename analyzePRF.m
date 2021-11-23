@@ -165,7 +165,7 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   - options.vxs is []
 %   - options.numperjob is []
 %   Also, in terms of outputs:
-%   - The <gain> output is not estimated, and gain values are just returned as <typicalgain>.
+%   - The <gain> output is set to 0.75 of the idealized setting.
 %   - The <R2> output will contain correlation values (r) that range between -1 and 1.
 %     These correlation values reflect the correlation between the model prediction and the
 %     data after projecting out polynomial regressors and the noise regressors (if
