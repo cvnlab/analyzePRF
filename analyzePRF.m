@@ -32,17 +32,23 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     of runs in <data>.  default is to use round(L/2) where L is the number of minutes
 %     in the duration of a given run.  special case is NaN, which means to not include
 %     any drift terms at all (not even a constant term).
-%   <seedmode> (optional) is a vector consisting of one or more of the
+%   <seedmode> (NOW REQUIRED) is a vector consisting of one or more of the
 %     following values (we automatically sort and ensure uniqueness):
 %       0 means use generic large PRF seed
 %       1 means use generic small PRF seed
 %       2 means use best seed based on super-grid
-%     default: [0 1 2].  a special case is to pass <seedmode> as -2.  this causes the
+%     a special case is to pass <seedmode> as -2.  this causes the
 %     best seed based on the super-grid to be returned as the final estimate, thereby
 %     bypassing the computationally expensive optimization procedure.  further notes
 %     on this case are given below.  another special case is passing <seedmode> as
 %     {S}, in which case we directly use the seeds contained in S, a matrix of 
 %     dimensions one-or-more-seeds x 5 parameters as the PRF seed(s).
+%     NOTE: <seedmode> used to be optional (and defaulted to [0 1 2]). The new
+%           behavior is to require the user to specify this. A suggestion is
+%           to set <seedmode> to 2. This is a fairly robust strategy (but has
+%           an initial overhead for the seed evaluation. An alternative is to
+%           set <seedmode> to 0, which avoids the overhead, but is more likely
+%           to get stuck at a local minimum close to the initial seed.
 %   <modelmode> (optional) is
 %     1 means a two-stage approach (optimize all parameters excluding exponent,
 %       and then optimize all parameters)
@@ -70,6 +76,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     instead do some special calculations to set the gain more appropriately
 %     (specifically, to 0.75 of the value that would produce the least-squares
 %     fit for the chosen seed, with a restriction to non-negative values only).
+%   <exptlowerbound> (optional) is the lower bound for the exponent parameter.
+%     This should be a positive number. Default: 0.001.
 %
 % Analyze pRF data and return the results.
 %
@@ -183,6 +191,15 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2021/12/05 - tag as version 1.5.
+% 2021/12/04 - implement new option <exptlowerbound>. this changes past behavior.
+%              for very small exponents, strange numerical inaccuracies were 
+%              occurring, causing implausible 'rfsize' outputs. after enforcing
+%              a reasonable lower bound (e.g. 0.001), these inaccuracies were
+%              resolved.
+% 2021/12/04 - we now force the user to specify <seedmode>. this is so that the
+%              user understands this is major parameter that will affect speed
+%              and accuracy.
 % 2021/11/22 - tag this as version 1.4.
 % 2021/11/22 - For 2 and -2 "supergrid" cases for <seedmode>, we now always
 %              use the <typicalgain>==NaN setting, which means to use an 
@@ -298,7 +315,8 @@ if ~isfield(options,'maxpolydeg') || isempty(options.maxpolydeg)
   options.maxpolydeg = [];
 end
 if ~isfield(options,'seedmode') || isempty(options.seedmode)
-  options.seedmode = [0 1 2];
+  error('<seedmode> is now required to be specified! Suggestion is 2 (see documentation).');
+  %%options.seedmode = [0 1 2];
 end
 if ~isfield(options,'modelmode') || isempty(options.modelmode)
   options.modelmode = 1;
@@ -320,6 +338,9 @@ if ~isfield(options,'algorithm') || isempty(options.algorithm)
 end
 if ~isfield(options,'typicalgain') || isempty(options.typicalgain)
   options.typicalgain = 10;
+end
+if ~isfield(options,'exptlowerbound') || isempty(options.exptlowerbound)
+  options.exptlowerbound = 0.001;
 end
 
 % massage
@@ -393,15 +414,15 @@ end
 [d,xx,yy] = makegaussian2d(resmx,2,2,2,2);
 
 % define the model (parameters are R C S G N)
-modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),options.hrf,dd(:,prod(res)+1));
-switch options.modelmode
+modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5),options.exptlowerbound),options.hrf,dd(:,prod(res)+1));
+switch options.modelmode   % NOTE: these bounds may not have any effect if you use levenberg-marquardt optimization!
 case 1
   model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
                 2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-           {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   0;
+           {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   options.exptlowerbound;
                      2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
 case 2
-  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   0;
+  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   options.exptlowerbound;
                 2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
 case 3
   model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
@@ -691,8 +712,8 @@ results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - paramsA(:,1,:),
                                                   paramsA(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
 results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - paramsA(:,1,:)).^2 + ...
                                              (paramsA(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
-results.expt(options.vxs,:) =   permute(posrect(paramsA(:,5,:)),[3 1 2]);
-results.rfsize(options.vxs,:) = permute(abs(paramsA(:,3,:)) ./ sqrt(posrect(paramsA(:,5,:))),[3 1 2]);
+results.expt(options.vxs,:) =   permute(posrect(paramsA(:,5,:),options.exptlowerbound),[3 1 2]);
+results.rfsize(options.vxs,:) = permute(abs(paramsA(:,3,:)) ./ sqrt(posrect(paramsA(:,5,:),options.exptlowerbound)),[3 1 2]);
 results.R2(options.vxs,:) =     permute(rA,[2 1]);
 results.gain(options.vxs,:) =   permute(posrect(paramsA(:,4,:)),[3 1 2]);
 if ~wantquick
