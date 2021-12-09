@@ -77,11 +77,16 @@ end
 data = tseriesinterp(data,2,1,2);
 
 % Finally, we analyze the data using analyzePRF.  The third argument is the TR, which 
-% is now 1 second.  The default analysis strategy involves two generic initial seeds
-% and an initial seed that is computed by performing a grid search.  This last seed is
-% a little costly to compute, so to save time, we set 'seedmode' to [0 1] which means 
-% to just use the two generic initial seeds.  We suppress command-window output by 
+% is now 1 second.  Here, we set 'seedmode' to [0 1] which means to just use 
+% two generic initial seeds.  We suppress command-window output by 
 % setting 'display' to 'off'.
+%
+% Note that you may want to try using 'seedmode' set to 2, which uses 
+% a single initial seed for each given voxel based on a very large
+% "super grid" collection of possible parameter combinations. Also, you may want to
+% try using 'seedmode' set to -2 which skips costly nonlinear optimization and
+% just returns the best of the "supergrid" found for each voxel (this is useful
+% for getting a pretty good answer in very little time).
 results = analyzePRF(stimulus,data,1,struct('seedmode',[0 1],'display','off'));
 %%
 
