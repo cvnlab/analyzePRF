@@ -198,6 +198,7 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   residuals.  This last-minute scaling should have no effect on the final parameter estimates.
 %
 % History:
+% - 2022/03/26 - remove the enforcement of full.
 % - 2014/05/01 - change the main loop to parfor; some cosmetic tweaks;
 %                now, if no parameters are to be optimized, just return the initial seed
 % - 2013/10/02 - implement the linear-model case
@@ -512,7 +513,7 @@ end
 if ~iscell(stimulus)
   stimulus = {stimulus};
 end
-stimulus = cellfun(@full,stimulus,'UniformOutput',0);
+%REMOVED: stimulus = cellfun(@full,stimulus,'UniformOutput',0);
 
 % deal with extraregressors
 if isa(opt.extraregressors,'function_handle')
