@@ -78,6 +78,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %     fit for the chosen seed, with a restriction to non-negative values only).
 %   <exptlowerbound> (optional) is the lower bound for the exponent parameter.
 %     This should be a positive number. Default: 0.001.
+%   <wantsparse> (optional) is whether to convert stimulus to sparse (for
+%     potential major execution speed-ups). Default: 1.
 %
 % Analyze pRF data and return the results.
 %
@@ -191,6 +193,8 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2022/03/26 - implement new option <wantsparse>. this changes past behavior,
+%              in a sense, but the differences are tiny.
 % 2021/12/05 - tag as version 1.5.
 % 2021/12/04 - implement new option <exptlowerbound>. this changes past behavior.
 %              for very small exponents, strange numerical inaccuracies were 
@@ -342,6 +346,9 @@ end
 if ~isfield(options,'exptlowerbound') || isempty(options.exptlowerbound)
   options.exptlowerbound = 0.001;
 end
+if ~isfield(options,'wantsparse') || isempty(options.wantsparse)
+  options.wantsparse = 1;
+end
 
 % massage
 wantquick = isequal(options.seedmode,-2);
@@ -365,6 +372,14 @@ for p=1:length(stimulus)
   stimulus{p} = [stimulus{p} p*ones(size(stimulus{p},1),1)];  % add a dummy column to indicate run breaks
 %% REMOVED ON AUG 23 2019!  THIS CHANGES PAST BEHAVIOR.
 %%  stimulus{p} = single(stimulus{p});  % make single to save memory
+  if options.wantsparse
+    if isequal(class(stimulus{p}),'double')
+      fprintf('converting stimulus (run %d) to sparse.\n',p);
+      stimulus{p} = sparse(stimulus{p});
+    else
+      fprintf('stimulus (run %d) is not double, so not converting to sparse.\n');
+    end
+  end
 end
 
 % deal with data badness (set bad voxels to be always all 0)
