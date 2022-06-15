@@ -3,10 +3,7 @@
 analyzePRF is a MATLAB toolbox for fitting population receptive field (pRF) models
 to fMRI data.  It is developed by Kendrick Kay (kendrick@post.harvard.edu).
 
-The toolbox has several dependencies:
-- MATLAB Optimization Toolbox
-- GLMdenoise (necessary only if you use the GLMdenoise feature; to download
-              GLMdenoise, see http://kendrickkay.net/GLMdenoise/)
+The toolbox requires the MATLAB Optimization Toolbox.
 
 Also, the code makes use of "parfor" (Matlab Parallel Computing Toolbox).
 However, this is not mandatory, as you can change the "parfor" contained
