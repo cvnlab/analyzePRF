@@ -193,6 +193,9 @@ function results = analyzePRF(stimulus,data,tr,options)
 %   This is a little clunky but works...
 %
 % history:
+% 2022/06/14 - the case of non-square stimulus preparations was being handled
+%              incorrectly (e.g. ang and ecc were being computed incorrectly).
+%              it is now fixed.
 % 2022/03/26 - implement new option <wantsparse>. this changes past behavior,
 %              in a sense, but the differences are tiny.
 % 2021/12/05 - tag as version 1.5.
@@ -432,16 +435,16 @@ end
 modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5),options.exptlowerbound),options.hrf,dd(:,prod(res)+1));
 switch options.modelmode   % NOTE: these bounds may not have any effect if you use levenberg-marquardt optimization!
 case 1
-  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun} ...
-           {@(ss)ss [1-res(1)+1 1-res(2)+1 0    0   options.exptlowerbound;
-                     2*res(1)-1 2*res(2)-1 Inf  Inf Inf] @(ss)modelfun}};
+  model = {{[] [1-resmx+1 1-resmx+1 0    0   NaN;
+                2*resmx-1 2*resmx-1 Inf  Inf Inf] modelfun} ...
+           {@(ss)ss [1-resmx+1 1-resmx+1 0    0   options.exptlowerbound;
+                     2*resmx-1 2*resmx-1 Inf  Inf Inf] @(ss)modelfun}};
 case 2
-  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   options.exptlowerbound;
-                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
+  model = {{[] [1-resmx+1 1-resmx+1 0    0   options.exptlowerbound;
+                2*resmx-1 2*resmx-1 Inf  Inf Inf] modelfun}};
 case 3
-  model = {{[] [1-res(1)+1 1-res(2)+1 0    0   NaN;
-                2*res(1)-1 2*res(2)-1 Inf  Inf Inf] modelfun}};
+  model = {{[] [1-resmx+1 1-resmx+1 0    0   NaN;
+                2*resmx-1 2*resmx-1 Inf  Inf Inf] modelfun}};
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREPARE SEEDS
@@ -457,13 +460,13 @@ else
   % generic large seed
   if ismember(0,options.seedmode)
     seeds = [seeds;
-             (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
+             (1+resmx)/2 (1+resmx)/2 resmx/4*sqrt(0.5) options.typicalgain 0.5];
   end
 
   % generic small seed
   if ismember(1,options.seedmode)
     seeds = [seeds;
-             (1+res(1))/2 (1+res(2))/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
+             (1+resmx)/2 (1+resmx)/2 resmx/4*sqrt(0.5)/10 options.typicalgain 0.5];
   end
 
   % super-grid seed
@@ -723,10 +726,10 @@ if options.xvalmode ~= 0
 end
 
 % massage model parameters for output and put in 'results' struct
-results.ang(options.vxs,:) =    permute(mod(atan2((1+res(1))/2 - paramsA(:,1,:), ...
-                                                  paramsA(:,2,:) - (1+res(2))/2),2*pi)/pi*180,[3 1 2]);
-results.ecc(options.vxs,:) =    permute(sqrt(((1+res(1))/2 - paramsA(:,1,:)).^2 + ...
-                                             (paramsA(:,2,:) - (1+res(2))/2).^2),[3 1 2]);
+results.ang(options.vxs,:) =    permute(mod(atan2((1+resmx)/2 - paramsA(:,1,:), ...
+                                                  paramsA(:,2,:) - (1+resmx)/2),2*pi)/pi*180,[3 1 2]);
+results.ecc(options.vxs,:) =    permute(sqrt(((1+resmx)/2 - paramsA(:,1,:)).^2 + ...
+                                             (paramsA(:,2,:) - (1+resmx)/2).^2),[3 1 2]);
 results.expt(options.vxs,:) =   permute(posrect(paramsA(:,5,:),options.exptlowerbound),[3 1 2]);
 results.rfsize(options.vxs,:) = permute(abs(paramsA(:,3,:)) ./ sqrt(posrect(paramsA(:,5,:),options.exptlowerbound)),[3 1 2]);
 results.R2(options.vxs,:) =     permute(rA,[2 1]);

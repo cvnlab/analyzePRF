@@ -19,6 +19,8 @@ function [seeds,rvalues] = analyzePRF_computesupergridseeds(res,stimulus,data,mo
 % (or XYZ x 1) with the corresponding correlation (r) values.
 %
 % history:
+% - 2022/06/14 - the case of non-square stimulus preparations was being handled
+%                incorrectly. it is now fixed.
 % - 2021/11/11 - remove the forcing of single format and instead inherit from <data>.
 %                also, explicitly handle some pernicious corner cases.
 % - 2015/02/07 - make less memory intensive
@@ -56,8 +58,8 @@ for p=1:length(eccs)
     end
     for s=1:length(ssindices)
       for r=1:length(expts)
-        allseeds(cnt,:) = [(1+res(1))/2 - sin(angs(q)) * (eccs(p)*resmx) ...
-                           (1+res(2))/2 + cos(angs(q)) * (eccs(p)*resmx) ...
+        allseeds(cnt,:) = [(1+resmx)/2 - sin(angs(q)) * (eccs(p)*resmx) ...
+                           (1+resmx)/2 + cos(angs(q)) * (eccs(p)*resmx) ...
                            ssindices(s)*sqrt(expts(r)) 1 expts(r)];
         cnt = cnt + 1;
       end
