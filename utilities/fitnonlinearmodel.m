@@ -198,6 +198,7 @@ function results = fitnonlinearmodel(opt,chunksize,chunknum)
 %   residuals.  This last-minute scaling should have no effect on the final parameter estimates.
 %
 % History:
+% - 2022/06/24 - minor bug fix regarding xval and boot indexing
 % - 2022/03/26 - remove the enforcement of full.
 % - 2014/05/01 - change the main loop to parfor; some cosmetic tweaks;
 %                now, if no parameters are to be optimized, just return the initial seed
@@ -594,8 +595,10 @@ case 'xval'
       trainfun{p} = @(x) catcell(1,x(trainix));
       testfun{p} =  @(x) catcell(1,x(testix));
     else
-      trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
-      testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+%       trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
+%       testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+      trainfun{p} = @(x) subscript(catcell(1,x),[{trainix} repmat({':'},[1 ndims(x)-1])]);
+      testfun{p}  = @(x) subscript(catcell(1,x),[{testix}  repmat({':'},[1 ndims(x)-1])]);
     end
   end
 case 'boot'
@@ -612,8 +615,10 @@ case 'boot'
       trainfun{p} = @(x) catcell(1,x(trainix));
       testfun{p} =  @(x) catcell(1,x(testix));
     else
-      trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
-      testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+%       trainfun{p} = @(x) subscript(catcell(1,x),{trainix ':' ':' ':' ':' ':'});  % HACKY
+%       testfun{p}  = @(x) subscript(catcell(1,x),{testix ':' ':' ':' ':' ':'});
+      trainfun{p} = @(x) subscript(catcell(1,x),[{trainix} repmat({':'},[1 ndims(x)-1])]);
+      testfun{p}  = @(x) subscript(catcell(1,x),[{testix}  repmat({':'},[1 ndims(x)-1])]);
     end
   end
 end
@@ -625,7 +630,7 @@ clear results0;
 parfor p=1:vnum
 
   % report
-  fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
+  %%fprintf('*** fitnonlinearmodel: processing voxel %d (%d of %d). ***\n',vxs(p),p,vnum);
   vtime = clock;  % start time for current voxel
 
   % get data and hack it in
@@ -647,8 +652,8 @@ parfor p=1:vnum
   results0(p) = fitnonlinearmodel_helper(opt2,stimulus,tmatrix,smatrix,trainfun,testfun);
 
   % report
-  fprintf('*** fitnonlinearmodel: voxel %d (%d of %d) took %.1f seconds. ***\n', ...
-          vxs(p),p,vnum,etime(clock,vtime));
+  %%fprintf('*** fitnonlinearmodel: voxel %d (%d of %d) took %.1f seconds. ***\n', ...
+  %%        vxs(p),p,vnum,etime(clock,vtime));
 
 end
 
