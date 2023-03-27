@@ -48,6 +48,35 @@ end
 % taking care to not bleed over run boundaries.
 modelfun = @(pp,dd) conv2run(posrect(pp(4)) * (dd*[vflatten(placematrix(zeros(res),makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0) / (2*pi*abs(pp(3))^2))); 0]) .^ posrect(pp(5)),hrf,dd(:,prod(res)+1));
 
+% %%%%% BRIEF ASIDE:
+% 
+% Note that the above line of code is highly compressed and is optimized for speed,
+% not necessarily readability. Here we show how the line can be broken up, omitting
+% some of the less critical steps:
+% 
+% % here, we have a set of parameters, like those present in the
+% % output from analyzePRF. pp is just a 5-element vector with
+% % [ROW COL SIGMA GAIN EXPONENT].
+% pp = results.params(1,:,1);
+% 
+% % make a Gaussian and give it a specific scale
+% mm = makegaussian2d(resmx,pp(1),pp(2),abs(pp(3)),abs(pp(3)),xx,yy,0,0);
+% mm = mm / (2*pi*abs(pp(3))^2);
+% 
+% % prepare the stimulus (here, we take just the first run of stimulus)
+% dd = stimulus{1};  % e.g. 100 x 100 x 300
+% dd = squish(dd,2);  % e.g. 10000 x 300
+% 
+% % compute the neural drive (dot product of stimulus with Gaussian,
+% % raise to an exponent, apply gain factor)
+% neural = posrect(pp(4))  *  (  (dd' * mm(:)) .^ posrect(pp(5)) );  % time x 1
+% 
+% % convolve with HRF
+% ts = conv(neural,hrf);
+% ts = ts(1:length(neural));  % crop to original length
+% 
+% %%%%%
+
 % Construct projection matrices that fit and remove the polynomials.
 % Note that a separate projection matrix is constructed for each run.
 polymatrix = {};
